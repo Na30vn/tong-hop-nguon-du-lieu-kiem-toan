@@ -229,8 +229,9 @@ def read_kv4(path):
     return details, priorities
 
 
-def read_pdf_forms(path, unit, detail_pages, priority_pages):
+def read_pdf_forms(path, unit, detail_pages, priority_pages, merge_continuations=False):
     details, priorities = [], []
+    raw_details = []
     with pdfplumber.open(path) as pdf:
         for page_no in detail_pages:
             for table in pdf.pages[page_no - 1].extract_tables() or []:
@@ -241,7 +242,12 @@ def read_pdf_forms(path, unit, detail_pages, priority_pages):
                         and re.fullmatch(r"\d+", clean(row[0]))
                         and clean(row[1]) not in {"", "2", "Mã nguồn"}
                     ):
-                        details.append(to_record(row, unit))
+                        raw_details.append(list(row[:12]))
+                    elif merge_continuations and raw_details and row and len(row) >= 12 and not clean(row[0]):
+                        for index, value in enumerate(row[:12]):
+                            continuation = clean(value)
+                            if continuation:
+                                raw_details[-1][index] = clean(f"{raw_details[-1][index] or ''} {continuation}")
         for page_no in priority_pages:
             for table in pdf.pages[page_no - 1].extract_tables() or []:
                 for row in table:
@@ -259,6 +265,7 @@ def read_pdf_forms(path, unit, detail_pages, priority_pages):
                             "reason": clean(row[3]),
                             "unit": unit,
                         })
+    details = [to_record(row, unit) for row in raw_details]
     return details, priorities
 
 
@@ -337,17 +344,23 @@ def main():
         ROOT / "KV10" / "771.KVX-TH. Bieu 01_ 02 Du lieu phu vu kiem toan.pdf",
         "KV10", range(1, 10), [10, 11],
     )
+    cn4_details, cn4_priorities = read_pdf_forms(
+        ROOT / "CN4" / "KTNN CNIV. Xac dinh nguon du lieu phuc vu kiem toan 30.9.pdf",
+        "CN4", range(2, 8), [8, 9], merge_continuations=True,
+    )
+    vp_details, vp_priorities = [], []
 
     details = (
-        kv3_details + kv4_details + kv7_details + kv8_details + kv9_details
-        + kv10_details + k12_details + cn5_details
+        vp_details + kv3_details + kv4_details + kv7_details + kv8_details + kv9_details
+        + kv10_details + k12_details + cn4_details + cn5_details
     )
     priorities = (
-        kv3_priorities + kv4_priorities + kv7_priorities + kv8_priorities + kv9_priorities
-        + kv10_priorities + k12_priorities + cn5_priorities
+        vp_priorities + kv3_priorities + kv4_priorities + kv7_priorities + kv8_priorities + kv9_priorities
+        + kv10_priorities + k12_priorities + cn4_priorities + cn5_priorities
     )
 
     file_folders = {
+        "VP": ROOT / "VP KTNN",
         "KV4": ROOT / "KV4",
         "KV7": ROOT / "KV7",
         "KV8": ROOT / "KV8",
@@ -355,37 +368,40 @@ def main():
         "KV9": ROOT / "KV9",
         "KV10": ROOT / "KV10",
         "KV12": ROOT / "K12",
+        "CN4": ROOT / "CN4",
         "CN5": ROOT / "CN5",
     }
     files = {unit: copy_files(unit, folder) for unit, folder in file_folders.items()}
     request_files = copy_files("yeu-cau-goc", ROOT / "CV yêu cầu gốc")
 
     unit_defs = [
-        ("KV3", "Kiểm toán nhà nước khu vực III", kv3_details, kv3_priorities, "Có đủ 3 biểu; tập trung ngân sách địa phương và đầu tư công.", "Đầy đủ"),
-        ("KV4", "Kiểm toán nhà nước khu vực IV", kv4_details, kv4_priorities, "Một PDF 16 trang; tách nội dung theo 4 lĩnh vực kiểm toán.", "Một phần"),
-        ("KV7", "Kiểm toán nhà nước khu vực VII", kv7_details, kv7_priorities, "Văn bản trả lời và phụ lục Excel; tập trung ngân sách địa phương, thuế, hải quan và đầu tư.", "Chưa có"),
-        ("KV8", "Kiểm toán nhà nước khu vực VIII", kv8_details, kv8_priorities, "Có đủ 3 biểu; phạm vi mã nguồn rộng nhất trong các hồ sơ hiện có.", "Đầy đủ"),
-        ("KV9", "Kiểm toán nhà nước khu vực IX", kv9_details, kv9_priorities, "Có đủ 3 biểu; danh mục bao quát thu ngân sách, đất đai, doanh nghiệp và đầu tư.", "Đầy đủ"),
-        ("KV10", "Kiểm toán nhà nước khu vực X", kv10_details, kv10_priorities, "Có đủ 3 biểu; danh mục chi tiết theo ngân sách, đầu tư và doanh nghiệp.", "Đầy đủ"),
-        ("KV12", "Kiểm toán nhà nước khu vực XII", k12_details, k12_priorities, "Văn bản trả lời và phụ lục Excel; nhiều nguồn thuế, TABMIS, đầu tư và dữ liệu bổ sung.", "Chưa có"),
-        ("CN5", "Kiểm toán nhà nước chuyên ngành V", cn5_details, cn5_priorities, "Có đủ 3 biểu; tập trung vào hai Bộ, doanh nghiệp nhà nước và các dự án đầu tư thuộc phạm vi kiểm toán.", "Đầy đủ"),
+        ("VP", "Văn phòng Kiểm toán nhà nước", vp_details, vp_priorities, "Văn bản số 299/VP-TKTH xác nhận không phát sinh nội dung theo yêu cầu của Công văn 998.", "Không phát sinh", "Không phát sinh", "Không phát sinh"),
+        ("KV3", "Kiểm toán nhà nước khu vực III", kv3_details, kv3_priorities, "Có đủ 3 biểu; tập trung ngân sách địa phương và đầu tư công.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
+        ("KV4", "Kiểm toán nhà nước khu vực IV", kv4_details, kv4_priorities, "Một PDF 16 trang; tách nội dung theo 4 lĩnh vực kiểm toán.", "Đầy đủ", "Đầy đủ", "Một phần"),
+        ("KV7", "Kiểm toán nhà nước khu vực VII", kv7_details, kv7_priorities, "Văn bản trả lời và phụ lục Excel; tập trung ngân sách địa phương, thuế, hải quan và đầu tư.", "Đầy đủ", "Đầy đủ", "Chưa có"),
+        ("KV8", "Kiểm toán nhà nước khu vực VIII", kv8_details, kv8_priorities, "Có đủ 3 biểu; phạm vi mã nguồn rộng nhất trong các hồ sơ hiện có.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
+        ("KV9", "Kiểm toán nhà nước khu vực IX", kv9_details, kv9_priorities, "Có đủ 3 biểu; danh mục bao quát thu ngân sách, đất đai, doanh nghiệp và đầu tư.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
+        ("KV10", "Kiểm toán nhà nước khu vực X", kv10_details, kv10_priorities, "Có đủ 3 biểu; danh mục chi tiết theo ngân sách, đầu tư và doanh nghiệp.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
+        ("KV12", "Kiểm toán nhà nước khu vực XII", k12_details, k12_priorities, "Văn bản trả lời và phụ lục Excel; nhiều nguồn thuế, TABMIS, đầu tư và dữ liệu bổ sung.", "Đầy đủ", "Đầy đủ", "Chưa có"),
+        ("CN4", "Kiểm toán nhà nước chuyên ngành IV", cn4_details, cn4_priorities, "Có đủ 3 biểu; gồm 17 nguồn dữ liệu về ngân sách, đầu tư, doanh nghiệp và kết quả kiểm tra.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
+        ("CN5", "Kiểm toán nhà nước chuyên ngành V", cn5_details, cn5_priorities, "Có đủ 3 biểu; tập trung vào hai Bộ, doanh nghiệp nhà nước và các dự án đầu tư thuộc phạm vi kiểm toán.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
     ]
     units = []
-    for code, name, unit_details, unit_priorities, note, form3 in unit_defs:
+    for code, name, unit_details, unit_priorities, note, form1, form2, form3 in unit_defs:
         units.append({
             "code": code,
             "name": name,
             "detail_count": len(unit_details),
             "priority_count": len(unit_priorities),
-            "form1": True,
-            "form2": True,
+            "form1": form1,
+            "form2": form2,
             "form3": form3,
             "note": note,
             "files": files[code],
         })
 
     priority_presence = Counter()
-    for unit in ["KV3", "KV4", "KV7", "KV8", "KV9", "KV10", "KV12", "CN5"]:
+    for unit, *_ in unit_defs:
         codes = {
             p["code"] for p in priorities
             if p["unit"] == unit and p["code"] and not re.fullmatch(r"BS-\d+", p["code"], flags=re.IGNORECASE)

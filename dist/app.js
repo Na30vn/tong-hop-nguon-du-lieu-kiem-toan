@@ -33,6 +33,10 @@
   const unitByCode = code => data.units.find(u => u.code === code);
   const shortUnitName = name => String(name || '').replace(/^Kiểm toán nhà nước\s+/i, 'KTNN ');
   const unitName = code => shortUnitName(unitByCode(code)?.name || code);
+  const formPill = (label, status) => {
+    const stateClass = status === 'Chưa có' ? 'missing' : status === 'Một phần' ? 'partial' : status === 'Không phát sinh' ? 'not-applicable' : '';
+    return `<div class="form-pill ${stateClass}">${status === 'Đầy đủ' ? label : `${label}: ${esc(status)}`}</div>`;
+  };
   const splitValues = value => String(value || '').split(';').map(item => item.trim()).filter(Boolean);
   const matchesValue = (value, selected) => !selected || splitValues(value).includes(selected);
 
@@ -58,8 +62,7 @@
     $('#metrics').innerHTML = metrics.map(([n,label]) => `<div class="metric"><strong>${fmt(n)}</strong><span>${label}</span></div>`).join('');
     $('#unitProgress').innerHTML = data.units.map(u => `<div class="unit-row">
       <div class="unit-name"><strong>${esc(shortUnitName(u.name))}</strong><small>${esc(u.code)} · ${fmt(u.detail_count)} nguồn · ${fmt(u.priority_count)} ưu tiên</small></div>
-      <div class="form-pill">Biểu 01</div><div class="form-pill">Biểu 02</div>
-      <div class="form-pill ${u.form3 === 'Chưa có' ? 'missing' : u.form3 === 'Một phần' ? 'partial' : ''}">${u.form3 === 'Đầy đủ' ? 'Biểu 03' : u.form3}</div>
+      ${formPill('Biểu 01', u.form1)}${formPill('Biểu 02', u.form2)}${formPill('Biểu 03', u.form3)}
       </div>`).join('');
     const max = Math.max(...data.common_priorities.map(x => x.units));
     $('#commonPriorities').innerHTML = data.common_priorities.slice(0,8).map(x => `<div class="bar-item"><code>${esc(x.code)}</code><div class="bar-track"><div class="bar-fill" style="width:${x.units/max*100}%"></div></div><span>${x.units}/${data.meta.unit_count}</span></div>`).join('');

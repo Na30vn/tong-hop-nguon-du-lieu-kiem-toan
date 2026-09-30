@@ -34,3 +34,5 @@ h1,h2,h3,.gate-card h1,.brief h2,.section-intro h2,.dialog-body h2{font-family:"
 #view-catalog .catalog-table td:nth-child(-n+3){z-index:1;background:#fff}
 #view-catalog .catalog-table th:nth-child(-n+3){z-index:4;background:#edf2f7}
 @media(max-width:760px){#view-catalog.active{height:auto;min-height:0;padding-bottom:0;overflow:visible}#view-catalog .table-wrap{height:62vh;min-height:360px;flex:none}#view-catalog .catalog-table th:nth-child(-n+3),#view-catalog .catalog-table td:nth-child(-n+3){position:static;min-width:unset;max-width:none;box-shadow:none}}
+.unit-row{grid-template-columns:minmax(145px,1.4fr) repeat(3,minmax(74px,110px))}
+.form-pill.not-applicable{background:#eef2f6;color:#586b80}
