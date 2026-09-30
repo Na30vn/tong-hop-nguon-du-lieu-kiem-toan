@@ -37,7 +37,7 @@
     state.view = view;
     $$('.view').forEach(el => el.classList.toggle('active', el.id === `view-${view}`));
     $$('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
-    const titles = {overview:'Tổng quan phản hồi',catalog:'Danh mục chi tiết',units:'Đơn vị và hồ sơ',issues:'Điểm cần rà soát'};
+    const titles = {overview:'Tổng quan phản hồi',catalog:'Danh mục chi tiết',units:'Đơn vị và hồ sơ',issues:'Nội dung cần rà soát'};
     $('#pageTitle').textContent = titles[view];
     window.scrollTo({top:0, behavior:'smooth'});
   }
@@ -50,7 +50,7 @@
       [data.meta.unit_count, 'đơn vị đã phản hồi'],
       [data.meta.detail_count, 'dòng danh mục đã trích xuất'],
       [data.meta.priority_count, 'đề xuất ưu tiên đang có'],
-      [data.issues.length, 'điểm cần rà soát'],
+      [data.issues.length, 'nội dung cần rà soát'],
     ];
     $('#metrics').innerHTML = metrics.map(([n,label]) => `<div class="metric"><strong>${fmt(n)}</strong><span>${label}</span></div>`).join('');
     $('#unitProgress').innerHTML = data.units.map(u => `<div class="unit-row">

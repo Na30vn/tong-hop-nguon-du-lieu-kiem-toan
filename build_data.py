@@ -38,6 +38,15 @@ def to_record(values, unit):
     return record
 
 
+def is_column_index_row(values, count):
+    normalized = [clean(value) for value in list(values)[:count]]
+    return normalized == [str(index) for index in range(1, count + 1)]
+
+
+def content_key(value):
+    return re.sub(r"[^\w]+", " ", clean(value).casefold(), flags=re.UNICODE).strip()
+
+
 def resolve_formula(wb, value):
     if not isinstance(value, str) or not value.startswith("="):
         return value
@@ -55,7 +64,8 @@ def read_excel(path, unit, detail_sheet, detail_start, priority_sheet, priority_
     details = []
     for row in ws.iter_rows(min_row=detail_start, max_col=12, values_only=True):
         marker = row[0]
-        if isinstance(marker, (int, float)) or (isinstance(marker, str) and marker.startswith("=")):
+        is_data_marker = isinstance(marker, (int, float)) or (isinstance(marker, str) and marker.startswith("="))
+        if is_data_marker and not is_column_index_row(row, 12) and clean(row[1]):
             details.append(to_record(row, unit))
 
     ws = wb[priority_sheet]
@@ -65,9 +75,13 @@ def read_excel(path, unit, detail_sheet, detail_start, priority_sheet, priority_
         marker = row[0]
         if not (isinstance(marker, (int, float)) or (isinstance(marker, str) and marker.startswith("="))):
             continue
-        rank += 1
+        if is_column_index_row(row, 4):
+            continue
         code = clean(resolve_formula(wb, row[1]))
         name = clean(resolve_formula(wb, row[2]))
+        if not code or not name:
+            continue
+        rank += 1
         priorities.append({"rank": rank, "code": code, "name": name, "reason": clean(row[3]), "unit": unit})
     return details, priorities
 
@@ -104,12 +118,12 @@ def read_docx_forms(path, unit):
     if doc.tables:
         for row in doc.tables[0].rows[2:]:
             values = [cell.text for cell in row.cells]
-            if values and re.fullmatch(r"\d+", clean(values[0])):
+            if values and re.fullmatch(r"\d+", clean(values[0])) and not is_column_index_row(values, 12) and clean(values[1]):
                 details.append(to_record(values, unit))
     if len(doc.tables) > 1:
         for row in doc.tables[1].rows[1:]:
             values = [clean(cell.text) for cell in row.cells]
-            if values and re.fullmatch(r"\d+", values[0]):
+            if values and re.fullmatch(r"\d+", values[0]) and not is_column_index_row(values, 4) and values[1] and values[2]:
                 priorities.append({
                     "rank": int(values[0]),
                     "code": values[1],
@@ -198,8 +212,21 @@ def main():
 
     priority_presence = Counter()
     for unit in ["KV4", "KV7", "KV8", "KV12", "CN5"]:
-        codes = {p["code"] for p in priorities if p["unit"] == unit and p["code"]}
+        codes = {
+            p["code"] for p in priorities
+            if p["unit"] == unit and p["code"] and not re.fullmatch(r"BS-\d+", p["code"], flags=re.IGNORECASE)
+        }
         priority_presence.update(codes)
+    bs_matches = {}
+    for priority in priorities:
+        code = priority["code"].upper()
+        if not re.fullmatch(r"BS-\d+", code):
+            continue
+        key = (code, content_key(priority["name"]))
+        bs_matches.setdefault(key, set()).add(priority["unit"])
+    for (code, _), matched_units in bs_matches.items():
+        if len(matched_units) >= 2:
+            priority_presence[code] = max(priority_presence[code], len(matched_units))
     common = [
         {"code": code, "units": count}
         for code, count in sorted(priority_presence.items(), key=lambda item: (-item[1], item[0]))
