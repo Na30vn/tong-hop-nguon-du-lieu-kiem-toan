@@ -60,7 +60,7 @@
       <div class="unit-name"><strong>${esc(shortUnitName(u.name))}</strong><small>${esc(u.code)} · ${fmt(u.detail_count)} nguồn · ${fmt(u.priority_count)} ưu tiên</small></div>
       <div class="form-pill">Biểu 01</div><div class="form-pill">Biểu 02</div>
       <div class="form-pill ${u.form3 === 'Chưa có' ? 'missing' : u.form3 === 'Một phần' ? 'partial' : ''}">${u.form3 === 'Đầy đủ' ? 'Biểu 03' : u.form3}</div>
-      <div class="unit-total">${fmt(u.files.length)} tệp</div></div>`).join('');
+      </div>`).join('');
     const max = Math.max(...data.common_priorities.map(x => x.units));
     $('#commonPriorities').innerHTML = data.common_priorities.slice(0,8).map(x => `<div class="bar-item"><code>${esc(x.code)}</code><div class="bar-track"><div class="bar-fill" style="width:${x.units/max*100}%"></div></div><span>${x.units}/${data.meta.unit_count}</span></div>`).join('');
     const kv8 = data.priorities.filter(p => p.unit === 'KV8').slice(0,10);
@@ -118,7 +118,7 @@
   function renderUnits() {
     $('#unitCards').innerHTML = data.units.map(u => `<article class="unit-line">
       <div class="unit-line-name"><span class="unit-code">${esc(u.code)}</span><div><h3>${esc(shortUnitName(u.name))}</h3><p>${esc(u.note)}</p></div></div>
-      <div class="unit-line-stats"><span><strong>${fmt(u.detail_count)}</strong> nguồn</span><span><strong>${fmt(u.priority_count)}</strong> ưu tiên</span><span><strong>${u.files.length}</strong> tệp</span><span class="coverage">Biểu 03: ${esc(u.form3)}</span></div>
+      <div class="unit-line-stats"><span><strong>${fmt(u.detail_count)}</strong> nguồn</span><span><strong>${fmt(u.priority_count)}</strong> ưu tiên</span><span class="coverage">Biểu 03: ${esc(u.form3)}</span></div>
       <div class="unit-line-actions"><div class="unit-downloads">${u.files.map(f => `<a class="button download-button" download href="${link(f.download)}" title="${esc(f.name)}">Tải ${esc(f.type)}</a>`).join('')}</div><button class="button primary" data-unit-open="${u.code}">Xem chi tiết</button></div>
     </article>`).join('');
   }
