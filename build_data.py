@@ -349,18 +349,32 @@ def main():
         "CN4", range(2, 8), [8, 9], merge_continuations=True,
     )
     vp_details, vp_priorities = [], []
+    thanh_tra_details = [
+        to_record([
+            "1", "CH-02", "07", "B2", "Kết quả thanh tra, kiểm tra",
+            "Kết luận thanh tra, kiểm tra, giám sát của các cơ quan có liên quan",
+            "", "Cơ quan thanh tra, kiểm tra, giám sát", "4", "1", "", "",
+        ], "TTRA"),
+        to_record([
+            "2", "CH-02", "07", "B6", "Kết quả thanh tra, kiểm tra",
+            "Kết luận thanh tra, kiểm tra, giám sát của các cơ quan có liên quan",
+            "", "Cơ quan thanh tra, kiểm tra, giám sát", "4", "1", "", "",
+        ], "TTRA"),
+    ]
+    thanh_tra_priorities = []
 
     details = (
-        vp_details + kv3_details + kv4_details + kv7_details + kv8_details + kv9_details
+        vp_details + thanh_tra_details + kv3_details + kv4_details + kv7_details + kv8_details + kv9_details
         + kv10_details + k12_details + cn4_details + cn5_details
     )
     priorities = (
-        vp_priorities + kv3_priorities + kv4_priorities + kv7_priorities + kv8_priorities + kv9_priorities
+        vp_priorities + thanh_tra_priorities + kv3_priorities + kv4_priorities + kv7_priorities + kv8_priorities + kv9_priorities
         + kv10_priorities + k12_priorities + cn4_priorities + cn5_priorities
     )
 
     file_folders = {
         "VP": ROOT / "VP KTNN",
+        "TTRA": ROOT / "Thanh tra",
         "KV4": ROOT / "KV4",
         "KV7": ROOT / "KV7",
         "KV8": ROOT / "KV8",
@@ -376,6 +390,7 @@ def main():
 
     unit_defs = [
         ("VP", "Văn phòng Kiểm toán nhà nước", vp_details, vp_priorities, "Văn bản số 299/VP-TKTH xác nhận không phát sinh nội dung theo yêu cầu của Công văn 998.", "Không phát sinh", "Không phát sinh", "Không phát sinh"),
+        ("TTRA", "Thanh tra Kiểm toán nhà nước", thanh_tra_details, thanh_tra_priorities, "Biểu 01 kê 2 dòng CH-02; không đề xuất nguồn ưu tiên và không nêu khó khăn, vướng mắc hoặc kiến nghị.", "Đầy đủ", "Không phát sinh", "Không phát sinh"),
         ("KV3", "Kiểm toán nhà nước khu vực III", kv3_details, kv3_priorities, "Có đủ 3 biểu; tập trung ngân sách địa phương và đầu tư công.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("KV4", "Kiểm toán nhà nước khu vực IV", kv4_details, kv4_priorities, "Một PDF 16 trang; tách nội dung theo 4 lĩnh vực kiểm toán.", "Đầy đủ", "Đầy đủ", "Một phần"),
         ("KV7", "Kiểm toán nhà nước khu vực VII", kv7_details, kv7_priorities, "Văn bản trả lời và phụ lục Excel; tập trung ngân sách địa phương, thuế, hải quan và đầu tư.", "Đầy đủ", "Đầy đủ", "Chưa có"),
