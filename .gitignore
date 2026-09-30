@@ -1,0 +1,7 @@
+.openai/
+.sites-runtime/
+dashboard-preview.png
+dashboard-mobile.png
+qa_site.mjs
+site-package*
+*.tar.gz

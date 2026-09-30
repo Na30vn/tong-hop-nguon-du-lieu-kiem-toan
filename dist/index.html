@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Dashboard nội bộ tổng hợp phản hồi xác định nguồn dữ liệu phục vụ hoạt động kiểm toán.">
+  <title>Tổng hợp nguồn dữ liệu phục vụ kiểm toán</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b2341'/%3E%3Cpath d='M15 43h34M19 36h26M23 29h18M27 22h10' stroke='%23f3bd45' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">DL</span>
+        <div><strong>Kho dữ liệu kiểm toán</strong><small>Tổng hợp Công văn 998</small></div>
+      </div>
+      <nav aria-label="Điều hướng chính">
+        <button class="nav-item active" data-view="overview"><span>01</span>Tổng quan</button>
+        <button class="nav-item" data-view="catalog"><span>02</span>Danh mục chi tiết</button>
+        <button class="nav-item" data-view="units"><span>03</span>Đơn vị và hồ sơ</button>
+        <button class="nav-item" data-view="issues"><span>04</span>Điểm cần rà soát</button>
+      </nav>
+      <div class="sidebar-foot">
+        <small>Cập nhật gần nhất</small>
+        <strong id="updatedAt">—</strong>
+        <div class="privacy">Nội bộ · Riêng tư</div>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">TRUNG TÂM TỔNG HỢP</p>
+          <h1 id="pageTitle">Tổng quan phản hồi</h1>
+        </div>
+        <div class="top-actions">
+          <label class="search"><span aria-hidden="true">⌕</span><input id="globalSearch" type="search" placeholder="Tìm mã nguồn, nội dung, đơn vị…" aria-label="Tìm kiếm"></label>
+          <button class="button ghost" id="printButton">In báo cáo</button>
+        </div>
+      </header>
+
+      <section class="view active" id="view-overview">
+        <div class="brief">
+          <div>
+            <p class="eyebrow">CÔNG VĂN 998/CNTT-UDDLS · HẠN 30/9/2026</p>
+            <h2>Từ hồ sơ rời thành một bức tranh có thể hành động</h2>
+            <p id="objective"></p>
+          </div>
+          <div class="brief-actions">
+            <button class="button primary" data-jump="catalog">Xem danh mục</button>
+            <div id="requestDownload"></div>
+          </div>
+        </div>
+
+        <div class="metrics" id="metrics"></div>
+
+        <div class="overview-grid">
+          <article class="panel span-7">
+            <div class="panel-head"><div><p class="eyebrow">TIẾN ĐỘ HỒ SƠ</p><h3>Mức độ đáp ứng theo đơn vị</h3></div><span class="legend">Biểu 01 · 02 · 03</span></div>
+            <div class="unit-progress" id="unitProgress"></div>
+          </article>
+          <article class="panel span-5 dark-panel">
+            <div class="panel-head"><div><p class="eyebrow">GIAO NHAU NHIỀU NHẤT</p><h3>Mã nguồn được ưu tiên</h3></div></div>
+            <div class="bar-list" id="commonPriorities"></div>
+          </article>
+          <article class="panel span-8">
+            <div class="panel-head"><div><p class="eyebrow">ƯU TIÊN NỔI BẬT</p><h3>10 đề xuất của KV8</h3></div><button class="text-button" data-unit-open="KV8">Mở hồ sơ KV8</button></div>
+            <div class="priority-strip" id="priorityHighlights"></div>
+          </article>
+          <article class="panel span-4 warning-panel">
+            <div class="panel-head"><div><p class="eyebrow">CẦN XỬ LÝ TRƯỚC KHI CHỐT</p><h3>Điểm rà soát</h3></div><span class="count-badge" id="issueCount"></span></div>
+            <div id="issuePreview"></div>
+            <button class="button wide" data-jump="issues">Xem toàn bộ điểm rà soát</button>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-catalog">
+        <div class="section-intro"><div><p class="eyebrow">BIỂU SỐ 01</p><h2>Danh mục nguồn dữ liệu</h2><p>Tra cứu tất cả nội dung đã trích xuất từ phụ lục của các đơn vị.</p></div><div class="result-count" id="catalogCount"></div></div>
+        <div class="filters">
+          <select id="unitFilter" aria-label="Lọc theo đơn vị"><option value="">Tất cả đơn vị</option></select>
+          <select id="codeFilter" aria-label="Lọc theo mã nguồn"><option value="">Tất cả mã nguồn</option></select>
+          <select id="frequencyFilter" aria-label="Lọc theo mức độ sử dụng"><option value="">Mọi mức độ sử dụng</option><option value="thường xuyên">Thường xuyên</option><option value="định kỳ">Định kỳ</option><option value="không thường xuyên">Không thường xuyên</option></select>
+          <button class="button ghost" id="clearFilters">Xóa bộ lọc</button>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Đơn vị</th><th>Mã nguồn</th><th>Nhóm dữ liệu</th><th>Tên dữ liệu chi tiết</th><th>Giai đoạn</th><th>Mức độ sử dụng</th><th></th></tr></thead><tbody id="catalogBody"></tbody></table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </section>
+
+      <section class="view" id="view-units">
+        <div class="section-intro"><div><p class="eyebrow">HỒ SƠ TIẾP NHẬN</p><h2>Đơn vị và tệp đính kèm</h2><p>Mở nhanh phần tóm tắt, ưu tiên và tải lại file gốc của từng đơn vị.</p></div></div>
+        <div class="unit-cards" id="unitCards"></div>
+      </section>
+
+      <section class="view" id="view-issues">
+        <div class="section-intro"><div><p class="eyebrow">KIỂM SOÁT CHẤT LƯỢNG</p><h2>Điểm cần rà soát trước khi tổng hợp</h2><p>Các điểm dưới đây được đối chiếu với yêu cầu gốc và nội dung hồ sơ đã nhận.</p></div></div>
+        <div class="issue-filters" id="issueFilters"></div>
+        <div class="issues-list" id="issuesList"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="detailDialog">
+    <button class="dialog-close" aria-label="Đóng" onclick="this.closest('dialog').close()">×</button>
+    <div id="dialogContent"></div>
+  </dialog>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
