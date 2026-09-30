@@ -77,29 +77,52 @@ def clean(value):
 
 
 def expand_code_list(value, mapping, alpha=False):
+    # Excel may coerce an entry such as "01, 02, 04" to 01/02/2004 while
+    # retaining a display format that visually resembles the intended list.
+    if isinstance(value, datetime) and not alpha:
+        date_codes = [str(value.day), str(value.month), str(value.year % 100)]
+        if all(code in mapping for code in date_codes):
+            return "; ".join(dict.fromkeys(mapping[code] for code in date_codes))
+
     text = clean(value)
     if not text:
         return ""
-    parts = [part.strip() for part in re.split(r"[,;/]+", text) if part.strip()]
+
+    # Some units append a free-text subject to the field code. Handle the
+    # complete cell before splitting because the subject itself may contain
+    # commas (for example: "6 - Quản lý, sử dụng đất đai").
+    if mapping is FIELD_MAP:
+        field_with_note = re.fullmatch(r"0?([1-7])\s*[-–:]\s*(.+)", text)
+        if field_with_note:
+            return f"{mapping[field_with_note.group(1)]}: {field_with_note.group(2)}"
+
+    # Excel sometimes turns lists such as "2.3" or "1.2" into decimal-like
+    # values. In these classification columns the dot is a separator, not a
+    # decimal point. Only split cells that consist entirely of valid codes so
+    # ordinary prose containing punctuation is preserved verbatim.
+    token = r"[A-Za-z]\d+" if alpha else r"\d+"
+    separator = r"(?:\s*[,;/.+]\s*|\s+và\s+)"
+    if not re.fullmatch(fr"{token}(?:{separator}{token})*", text, flags=re.IGNORECASE):
+        return text
+
+    parts = [part.strip() for part in re.split(separator, text, flags=re.IGNORECASE) if part.strip()]
     expanded = []
     for part in parts:
         key = part.upper() if alpha else part.lstrip("0") or "0"
         if key in mapping:
             expanded.append(mapping[key])
             continue
-        field_with_note = re.fullmatch(r"0?([1-7])\s*[-–]\s*(.+)", part)
-        if mapping is FIELD_MAP and field_with_note:
-            expanded.append(f"{mapping[field_with_note.group(1)]}: {field_with_note.group(2)}")
-            continue
         return text
     return "; ".join(dict.fromkeys(expanded))
 
 
 def normalize_frequency(value):
+    if isinstance(value, datetime):
+        return expand_code_list(value, FREQUENCY_MAP)
     text = clean(value)
     if not text:
         return ""
-    if re.fullmatch(r"[0-9\s,;/]+", text):
+    if re.fullmatch(r"[0-9\s,;/.+]+", text):
         return expand_code_list(text, FREQUENCY_MAP)
     lowered = text.casefold()
     levels = []
@@ -114,14 +137,14 @@ def normalize_frequency(value):
 
 
 def to_record(values, unit):
-    values = [clean(v) for v in list(values)[:12]]
-    values += [""] * (12 - len(values))
-    record = dict(zip(HEADERS, values))
-    record["field"] = expand_code_list(record["field"], FIELD_MAP)
-    record["stages"] = expand_code_list(record["stages"], STAGE_MAP, alpha=True)
-    record["source_type"] = expand_code_list(record["source_type"], SOURCE_TYPE_MAP)
-    record["format"] = expand_code_list(record["format"], FORMAT_MAP)
-    record["frequency"] = normalize_frequency(record["frequency"])
+    raw_values = list(values)[:12]
+    raw_values += [""] * (12 - len(raw_values))
+    record = dict(zip(HEADERS, [clean(value) for value in raw_values]))
+    record["field"] = expand_code_list(raw_values[2], FIELD_MAP)
+    record["stages"] = expand_code_list(raw_values[3], STAGE_MAP, alpha=True)
+    record["source_type"] = expand_code_list(raw_values[8], SOURCE_TYPE_MAP)
+    record["format"] = expand_code_list(raw_values[9], FORMAT_MAP)
+    record["frequency"] = normalize_frequency(raw_values[11])
     record["unit"] = unit
     return record
 
