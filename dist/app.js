@@ -23,7 +23,7 @@
       accessInput.select();
     }
   });
-  const state = { view: 'overview', page: 1, pageSize: 18, query: '', unit: '', code: '', frequency: '', issueUnit: 'Tất cả' };
+  const state = { view: 'overview', page: 1, pageSize: 18, query: '', unit: '', code: '', field: '', stage: '', sourceType: '', format: '', frequency: '', issueUnit: 'Tất cả' };
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
   const esc = (v = '') => String(v).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -31,7 +31,10 @@
   const fileSize = bytes => bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
   const link = path => encodeURI(path).replace(/#/g, '%23');
   const unitByCode = code => data.units.find(u => u.code === code);
-  const unitName = code => unitByCode(code)?.name || code;
+  const shortUnitName = name => String(name || '').replace(/^Kiểm toán nhà nước\s+/i, 'KTNN ');
+  const unitName = code => shortUnitName(unitByCode(code)?.name || code);
+  const splitValues = value => String(value || '').split(';').map(item => item.trim()).filter(Boolean);
+  const matchesValue = (value, selected) => !selected || splitValues(value).includes(selected);
 
   function switchView(view) {
     state.view = view;
@@ -54,7 +57,7 @@
     ];
     $('#metrics').innerHTML = metrics.map(([n,label]) => `<div class="metric"><strong>${fmt(n)}</strong><span>${label}</span></div>`).join('');
     $('#unitProgress').innerHTML = data.units.map(u => `<div class="unit-row">
-      <div class="unit-name"><strong>${esc(u.name)}</strong><small>${esc(u.code)} · ${fmt(u.detail_count)} nguồn · ${fmt(u.priority_count)} ưu tiên</small></div>
+      <div class="unit-name"><strong>${esc(shortUnitName(u.name))}</strong><small>${esc(u.code)} · ${fmt(u.detail_count)} nguồn · ${fmt(u.priority_count)} ưu tiên</small></div>
       <div class="form-pill">Biểu 01</div><div class="form-pill">Biểu 02</div>
       <div class="form-pill ${u.form3 === 'Chưa có' ? 'missing' : u.form3 === 'Một phần' ? 'partial' : ''}">${u.form3 === 'Đầy đủ' ? 'Biểu 03' : u.form3}</div>
       <div class="unit-total">${fmt(u.files.length)} tệp</div></div>`).join('');
@@ -69,8 +72,15 @@
   function filteredDetails() {
     const q = state.query.toLocaleLowerCase('vi');
     return data.details.filter(r => {
-      const hay = [r.unit,r.code,r.group,r.name,r.indicators,r.owner,r.purpose,r.frequency].join(' ').toLocaleLowerCase('vi');
-      return (!q || hay.includes(q)) && (!state.unit || r.unit === state.unit) && (!state.code || r.code === state.code) && (!state.frequency || r.frequency.toLocaleLowerCase('vi').includes(state.frequency));
+      const hay = [r.unit,unitName(r.unit),r.code,r.field,r.stages,r.group,r.name,r.indicators,r.owner,r.source_type,r.format,r.purpose,r.frequency].join(' ').toLocaleLowerCase('vi');
+      return (!q || hay.includes(q))
+        && (!state.unit || r.unit === state.unit)
+        && (!state.code || r.code === state.code)
+        && matchesValue(r.field, state.field)
+        && matchesValue(r.stages, state.stage)
+        && matchesValue(r.source_type, state.sourceType)
+        && matchesValue(r.format, state.format)
+        && matchesValue(r.frequency, state.frequency);
     });
   }
 
@@ -81,15 +91,24 @@
     const slice = rows.slice((state.page-1)*state.pageSize, state.page*state.pageSize);
     $('#catalogCount').textContent = `${fmt(rows.length)} kết quả`;
     $('#catalogBody').innerHTML = slice.length ? slice.map((r, idx) => `<tr>
-      <td class="row-unit"><strong>${esc(unitName(r.unit))}</strong><small>${esc(r.unit)}</small></td><td><code>${esc(r.code)}</code></td><td>${esc(r.group)}</td><td>${esc(r.name)}</td><td>${esc(r.stages)}</td><td>${esc(r.frequency)}</td>
-      <td><button class="row-more" data-detail-index="${data.details.indexOf(r)}">Chi tiết</button></td></tr>`).join('') : `<tr><td colspan="7" class="empty">Không có kết quả phù hợp.</td></tr>`;
+      <td>${esc(r.stt)}</td><td class="row-unit"><strong>${esc(unitName(r.unit))}</strong><small>${esc(r.unit)}</small></td><td><code>${esc(r.code)}</code></td><td>${esc(r.field)}</td><td>${esc(r.stages)}</td><td>${esc(r.group)}</td><td>${esc(r.name)}</td><td>${esc(r.indicators)}</td><td>${esc(r.owner)}</td><td>${esc(r.source_type)}</td><td>${esc(r.format)}</td><td>${esc(r.purpose)}</td><td>${esc(r.frequency)}</td>
+      <td><button class="row-more" data-detail-index="${data.details.indexOf(r)}">Chi tiết</button></td></tr>`).join('') : `<tr><td colspan="14" class="empty">Không có kết quả phù hợp.</td></tr>`;
     $('#pagination').innerHTML = Array.from({length:pages},(_,i)=>i+1).slice(Math.max(0,state.page-3),Math.min(pages,state.page+2)).map(p => `<button class="page-btn ${p===state.page?'active':''}" data-page="${p}">${p}</button>`).join('');
   }
 
   function renderFilters() {
-    $('#unitFilter').innerHTML += data.units.map(u => `<option value="${u.code}">${esc(u.name)}</option>`).join('');
+    $('#unitFilter').innerHTML += data.units.map(u => `<option value="${u.code}">${esc(shortUnitName(u.name))}</option>`).join('');
     const codes = [...new Set(data.details.map(r => r.code).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
     $('#codeFilter').innerHTML += codes.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    const addOptions = (selector, key) => {
+      const values = [...new Set(data.details.flatMap(row => splitValues(row[key])))].sort((a,b)=>a.localeCompare(b,'vi'));
+      $(selector).innerHTML += values.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('');
+    };
+    addOptions('#fieldFilter', 'field');
+    addOptions('#stageFilter', 'stages');
+    addOptions('#sourceTypeFilter', 'source_type');
+    addOptions('#formatFilter', 'format');
+    addOptions('#frequencyFilter', 'frequency');
   }
 
   function fileList(files) {
@@ -97,10 +116,11 @@
   }
 
   function renderUnits() {
-    $('#unitCards').innerHTML = data.units.map(u => `<article class="unit-card">
-      <div class="unit-card-top"><div><p class="eyebrow">${esc(u.code)}</p><h3>${esc(u.name)}</h3></div><span class="coverage">Biểu 03: ${esc(u.form3)}</span></div>
-      <p>${esc(u.note)}</p><div class="unit-stats"><div><strong>${fmt(u.detail_count)}</strong><span>nguồn dữ liệu</span></div><div><strong>${fmt(u.priority_count)}</strong><span>đề xuất ưu tiên</span></div><div><strong>${u.files.length}</strong><span>tệp gốc</span></div></div>
-      <div class="file-list">${fileList(u.files)}</div><button class="button wide" data-unit-open="${u.code}">Xem ưu tiên và nhận xét</button></article>`).join('');
+    $('#unitCards').innerHTML = data.units.map(u => `<article class="unit-line">
+      <div class="unit-line-name"><span class="unit-code">${esc(u.code)}</span><div><h3>${esc(shortUnitName(u.name))}</h3><p>${esc(u.note)}</p></div></div>
+      <div class="unit-line-stats"><span><strong>${fmt(u.detail_count)}</strong> nguồn</span><span><strong>${fmt(u.priority_count)}</strong> ưu tiên</span><span><strong>${u.files.length}</strong> tệp</span><span class="coverage">Biểu 03: ${esc(u.form3)}</span></div>
+      <div class="unit-line-actions"><div class="unit-downloads">${u.files.map(f => `<a class="button download-button" download href="${link(f.download)}" title="${esc(f.name)}">Tải ${esc(f.type)}</a>`).join('')}</div><button class="button primary" data-unit-open="${u.code}">Xem chi tiết</button></div>
+    </article>`).join('');
   }
 
   function renderIssues() {
@@ -113,7 +133,7 @@
   function openDetail(index) {
     const r = data.details[index];
     $('#dialogContent').innerHTML = `<div class="dialog-body"><h2>${esc(r.name || r.group)}</h2><span class="dialog-code">${esc(unitName(r.unit))} · ${esc(r.code)}</span><div class="detail-grid">
-      ${[['Nhóm dữ liệu',r.group],['Lĩnh vực',r.field],['Giai đoạn sử dụng',r.stages],['Mức độ sử dụng',r.frequency],['Cơ quan quản lý',r.owner],['Hình thức hiện có',r.format],['Nội dung, chỉ tiêu',r.indicators],['Mục đích kiểm toán',r.purpose]].map(([k,v],i)=>`<div class="detail-block ${i>5?'wide':''}"><strong>${k}</strong><span>${esc(v||'Chưa nêu')}</span></div>`).join('')}</div></div>`;
+      ${[['Nhóm dữ liệu',r.group],['Lĩnh vực kiểm toán',r.field],['Giai đoạn sử dụng',r.stages],['Mức độ sử dụng',r.frequency],['Cơ quan quản lý',r.owner],['Loại nguồn',r.source_type],['Hình thức dữ liệu hiện có',r.format],['Nội dung, chỉ tiêu',r.indicators],['Mục đích kiểm toán',r.purpose]].map(([k,v],i)=>`<div class="detail-block ${i>6?'wide':''}"><strong>${k}</strong><span>${esc(v||'Chưa nêu')}</span></div>`).join('')}</div></div>`;
     $('#detailDialog').showModal();
   }
 
@@ -121,7 +141,7 @@
     const unit = data.units.find(u => u.code === code);
     const priorities = data.priorities.filter(p => p.unit === code);
     const issues = data.issues.filter(i => i.unit === code);
-    $('#dialogContent').innerHTML = `<div class="dialog-body"><p class="eyebrow">${esc(code)}</p><h2>${esc(unit.name)}</h2><p>${esc(unit.note)}</p>
+    $('#dialogContent').innerHTML = `<div class="dialog-body"><p class="eyebrow">${esc(code)}</p><h2>${esc(shortUnitName(unit.name))}</h2><p>${esc(unit.note)}</p>
       <h3>Danh sách ưu tiên (${priorities.length})</h3><div class="file-list">${priorities.slice(0,12).map(p=>`<div class="file-link"><span class="file-type">${p.rank}</span><span><strong>${esc(p.code)} · ${esc(p.name)}</strong><small>${esc(p.reason)}</small></span></div>`).join('')}</div>
       ${priorities.length>12?`<p class="legend">Đang hiển thị 12/${priorities.length} ưu tiên. Xem đầy đủ trong file gốc.</p>`:''}
       ${issues.length?`<h3>Điểm cần rà soát</h3>${issues.map(i=>`<div class="issue-mini"><strong>${esc(i.title)}</strong><span>${esc(i.detail)}</span></div>`).join('')}`:''}
@@ -140,8 +160,12 @@
   $('#globalSearch').addEventListener('input', e => { state.query = e.target.value.trim(); state.page = 1; if (state.query && state.view !== 'catalog') switchView('catalog'); renderCatalog(); });
   $('#unitFilter').addEventListener('change', e => { state.unit=e.target.value; state.page=1; renderCatalog(); });
   $('#codeFilter').addEventListener('change', e => { state.code=e.target.value; state.page=1; renderCatalog(); });
+  $('#fieldFilter').addEventListener('change', e => { state.field=e.target.value; state.page=1; renderCatalog(); });
+  $('#stageFilter').addEventListener('change', e => { state.stage=e.target.value; state.page=1; renderCatalog(); });
+  $('#sourceTypeFilter').addEventListener('change', e => { state.sourceType=e.target.value; state.page=1; renderCatalog(); });
+  $('#formatFilter').addEventListener('change', e => { state.format=e.target.value; state.page=1; renderCatalog(); });
   $('#frequencyFilter').addEventListener('change', e => { state.frequency=e.target.value; state.page=1; renderCatalog(); });
-  $('#clearFilters').addEventListener('click', () => { state.unit=state.code=state.frequency=state.query=''; $('#unitFilter').value=$('#codeFilter').value=$('#frequencyFilter').value=$('#globalSearch').value=''; state.page=1; renderCatalog(); });
+  $('#clearFilters').addEventListener('click', () => { state.unit=state.code=state.field=state.stage=state.sourceType=state.format=state.frequency=state.query=''; $('#unitFilter').value=$('#codeFilter').value=$('#fieldFilter').value=$('#stageFilter').value=$('#sourceTypeFilter').value=$('#formatFilter').value=$('#frequencyFilter').value=$('#globalSearch').value=''; state.page=1; renderCatalog(); });
   $('#printButton').addEventListener('click', () => window.print());
   $('#detailDialog').addEventListener('click', e => { if (e.target === $('#detailDialog')) $('#detailDialog').close(); });
 

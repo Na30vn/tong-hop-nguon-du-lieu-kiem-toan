@@ -23,6 +23,52 @@ HEADERS = [
     "owner", "source_type", "format", "purpose", "frequency",
 ]
 
+FIELD_MAP = {
+    "1": "Ngân sách trung ương của bộ, cơ quan trung ương",
+    "2": "Ngân sách địa phương",
+    "3": "Quyết toán ngân sách nhà nước",
+    "4": "Dự án đầu tư xây dựng",
+    "5": "Doanh nghiệp và các tổ chức tài chính, ngân hàng",
+    "6": "Chuyên đề",
+    "7": "Phục vụ chung toàn Ngành",
+}
+
+STAGE_MAP = {
+    "A1": "Chuẩn bị kiểm toán",
+    "A2": "Thực hiện kiểm toán",
+    "A3": "Lập và gửi báo cáo kiểm toán",
+    "A4": "Theo dõi thực hiện kết luận, kiến nghị kiểm toán",
+    "B1": "Xây dựng kế hoạch kiểm toán trung hạn và hằng năm",
+    "B2": "Kiểm soát chất lượng kiểm toán",
+    "B3": "Tổng hợp, báo cáo kết quả kiểm toán",
+    "B4": "Theo dõi thực hiện kết luận, kiến nghị ở cấp Ngành",
+    "B5": "Công khai kết quả kiểm toán",
+    "B6": "Thanh tra",
+}
+
+SOURCE_TYPE_MAP = {
+    "1": "Hệ thống của đơn vị được kiểm toán hoặc đơn vị liên quan",
+    "2": "Cơ sở dữ liệu quốc gia, chuyên ngành",
+    "3": "Hồ sơ, tài liệu rời do đơn vị quản lý",
+    "4": "Dữ liệu từ cơ quan thanh tra, kiểm tra, giám sát",
+    "5": "Dữ liệu công khai, dữ liệu mở",
+    "6": "Dữ liệu phải mua hoặc thuê quyền truy cập",
+}
+
+FORMAT_MAP = {
+    "1": "Bản giấy",
+    "2": "Bản scan hoặc PDF không bóc tách được",
+    "3": "Tệp văn bản hoặc bảng tính rời",
+    "4": "Dữ liệu trong hệ thống thông tin, cơ sở dữ liệu",
+    "5": "Dữ liệu công bố trên môi trường mạng",
+}
+
+FREQUENCY_MAP = {
+    "1": "Thường xuyên",
+    "2": "Định kỳ",
+    "3": "Không thường xuyên",
+}
+
 
 def clean(value):
     if value is None:
@@ -30,10 +76,52 @@ def clean(value):
     return re.sub(r"\s+", " ", str(value)).strip()
 
 
+def expand_code_list(value, mapping, alpha=False):
+    text = clean(value)
+    if not text:
+        return ""
+    parts = [part.strip() for part in re.split(r"[,;/]+", text) if part.strip()]
+    expanded = []
+    for part in parts:
+        key = part.upper() if alpha else part.lstrip("0") or "0"
+        if key in mapping:
+            expanded.append(mapping[key])
+            continue
+        field_with_note = re.fullmatch(r"0?([1-7])\s*[-–]\s*(.+)", part)
+        if mapping is FIELD_MAP and field_with_note:
+            expanded.append(f"{mapping[field_with_note.group(1)]}: {field_with_note.group(2)}")
+            continue
+        return text
+    return "; ".join(dict.fromkeys(expanded))
+
+
+def normalize_frequency(value):
+    text = clean(value)
+    if not text:
+        return ""
+    if re.fullmatch(r"[0-9\s,;/]+", text):
+        return expand_code_list(text, FREQUENCY_MAP)
+    lowered = text.casefold()
+    levels = []
+    if "không thường xuyên" in lowered:
+        levels.append("Không thường xuyên")
+        lowered = lowered.replace("không thường xuyên", "")
+    if "thường xuyên" in lowered:
+        levels.append("Thường xuyên")
+    if "định kỳ" in lowered or "hằng năm" in lowered or "hàng năm" in lowered:
+        levels.append("Định kỳ")
+    return "; ".join(dict.fromkeys(levels)) or text
+
+
 def to_record(values, unit):
     values = [clean(v) for v in list(values)[:12]]
     values += [""] * (12 - len(values))
     record = dict(zip(HEADERS, values))
+    record["field"] = expand_code_list(record["field"], FIELD_MAP)
+    record["stages"] = expand_code_list(record["stages"], STAGE_MAP, alpha=True)
+    record["source_type"] = expand_code_list(record["source_type"], SOURCE_TYPE_MAP)
+    record["format"] = expand_code_list(record["format"], FORMAT_MAP)
+    record["frequency"] = normalize_frequency(record["frequency"])
     record["unit"] = unit
     return record
 
