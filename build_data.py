@@ -88,6 +88,12 @@ def expand_code_list(value, mapping, alpha=False):
     if not text:
         return ""
 
+    # PDF extraction can split a zero-padded code at the comma glyph
+    # (for example "0,3" instead of "03"). Code 0 is not valid in any of
+    # these classifications, so joining it back is unambiguous.
+    if not alpha:
+        text = re.sub(r"\b0\s*,\s*([1-9])\b", r"0\1", text)
+
     # Some units append a free-text subject to the field code. Handle the
     # complete cell before splitting because the subject itself may contain
     # commas (for example: "6 - Quản lý, sử dụng đất đai").
@@ -101,7 +107,7 @@ def expand_code_list(value, mapping, alpha=False):
     # decimal point. Only split cells that consist entirely of valid codes so
     # ordinary prose containing punctuation is preserved verbatim.
     token = r"[A-Za-z]\d+" if alpha else r"\d+"
-    separator = r"(?:\s*[,;/.+]\s*|\s+và\s+)"
+    separator = r"(?:\s*[,;/.+]\s*|\s+và\s+|\s+)"
     if not re.fullmatch(fr"{token}(?:{separator}{token})*", text, flags=re.IGNORECASE):
         return text
 
@@ -223,16 +229,49 @@ def read_kv4(path):
     return details, priorities
 
 
-def read_docx_forms(path, unit):
+def read_pdf_forms(path, unit, detail_pages, priority_pages):
+    details, priorities = [], []
+    with pdfplumber.open(path) as pdf:
+        for page_no in detail_pages:
+            for table in pdf.pages[page_no - 1].extract_tables() or []:
+                for row in table:
+                    if (
+                        row
+                        and len(row) >= 12
+                        and re.fullmatch(r"\d+", clean(row[0]))
+                        and clean(row[1]) not in {"", "2", "Mã nguồn"}
+                    ):
+                        details.append(to_record(row, unit))
+        for page_no in priority_pages:
+            for table in pdf.pages[page_no - 1].extract_tables() or []:
+                for row in table:
+                    if (
+                        row
+                        and len(row) >= 4
+                        and re.fullmatch(r"\d+", clean(row[0]))
+                        and clean(row[1]) not in {"", "2", "Mã nguồn"}
+                        and clean(row[2]) not in {"", "3", "Tên dữ liệu"}
+                    ):
+                        priorities.append({
+                            "rank": int(clean(row[0])),
+                            "code": clean(row[1]),
+                            "name": clean(row[2]),
+                            "reason": clean(row[3]),
+                            "unit": unit,
+                        })
+    return details, priorities
+
+
+def read_docx_forms(path, unit, detail_table=0, priority_table=1):
     doc = Document(path)
     details, priorities = [], []
-    if doc.tables:
-        for row in doc.tables[0].rows[2:]:
+    if len(doc.tables) > detail_table:
+        for row in doc.tables[detail_table].rows[2:]:
             values = [cell.text for cell in row.cells]
             if values and re.fullmatch(r"\d+", clean(values[0])) and not is_column_index_row(values, 12) and clean(values[1]):
                 details.append(to_record(values, unit))
-    if len(doc.tables) > 1:
-        for row in doc.tables[1].rows[1:]:
+    if len(doc.tables) > priority_table:
+        for row in doc.tables[priority_table].rows[1:]:
             values = [clean(cell.text) for cell in row.cells]
             if values and re.fullmatch(r"\d+", values[0]) and not is_column_index_row(values, 4) and values[1] and values[2]:
                 priorities.append({
@@ -286,14 +325,35 @@ def main():
     cn5_details, cn5_priorities = read_docx_forms(
         ROOT / "CN5" / "Phu_bieu_01_02_03_nguon_du_lieu_KTNN_CNV.docx", "CN5"
     )
+    kv3_details, kv3_priorities = read_pdf_forms(
+        ROOT / "KV3" / "Phu_luc xác định các nguồn dữ liệu phục vụ hoạt động kiểm toán.pdf",
+        "KV3", range(1, 3), [3],
+    )
+    kv9_details, kv9_priorities = read_docx_forms(
+        ROOT / "KV9" / "_30.9.2026_KVIX_Bao cao ve v.v xac dinh nguon du lieu theo CV 998 cua Cuc CNTT.docx",
+        "KV9", 2, 3,
+    )
+    kv10_details, kv10_priorities = read_pdf_forms(
+        ROOT / "KV10" / "771.KVX-TH. Bieu 01_ 02 Du lieu phu vu kiem toan.pdf",
+        "KV10", range(1, 10), [10, 11],
+    )
 
-    details = kv4_details + kv7_details + kv8_details + k12_details + cn5_details
-    priorities = kv4_priorities + kv7_priorities + kv8_priorities + k12_priorities + cn5_priorities
+    details = (
+        kv3_details + kv4_details + kv7_details + kv8_details + kv9_details
+        + kv10_details + k12_details + cn5_details
+    )
+    priorities = (
+        kv3_priorities + kv4_priorities + kv7_priorities + kv8_priorities + kv9_priorities
+        + kv10_priorities + k12_priorities + cn5_priorities
+    )
 
     file_folders = {
         "KV4": ROOT / "KV4",
         "KV7": ROOT / "KV7",
         "KV8": ROOT / "KV8",
+        "KV3": ROOT / "KV3",
+        "KV9": ROOT / "KV9",
+        "KV10": ROOT / "KV10",
         "KV12": ROOT / "K12",
         "CN5": ROOT / "CN5",
     }
@@ -301,9 +361,12 @@ def main():
     request_files = copy_files("yeu-cau-goc", ROOT / "CV yêu cầu gốc")
 
     unit_defs = [
+        ("KV3", "Kiểm toán nhà nước khu vực III", kv3_details, kv3_priorities, "Có đủ 3 biểu; tập trung ngân sách địa phương và đầu tư công.", "Đầy đủ"),
         ("KV4", "Kiểm toán nhà nước khu vực IV", kv4_details, kv4_priorities, "Một PDF 16 trang; tách nội dung theo 4 lĩnh vực kiểm toán.", "Một phần"),
         ("KV7", "Kiểm toán nhà nước khu vực VII", kv7_details, kv7_priorities, "Văn bản trả lời và phụ lục Excel; tập trung ngân sách địa phương, thuế, hải quan và đầu tư.", "Chưa có"),
         ("KV8", "Kiểm toán nhà nước khu vực VIII", kv8_details, kv8_priorities, "Có đủ 3 biểu; phạm vi mã nguồn rộng nhất trong các hồ sơ hiện có.", "Đầy đủ"),
+        ("KV9", "Kiểm toán nhà nước khu vực IX", kv9_details, kv9_priorities, "Có đủ 3 biểu; danh mục bao quát thu ngân sách, đất đai, doanh nghiệp và đầu tư.", "Đầy đủ"),
+        ("KV10", "Kiểm toán nhà nước khu vực X", kv10_details, kv10_priorities, "Có đủ 3 biểu; danh mục chi tiết theo ngân sách, đầu tư và doanh nghiệp.", "Đầy đủ"),
         ("KV12", "Kiểm toán nhà nước khu vực XII", k12_details, k12_priorities, "Văn bản trả lời và phụ lục Excel; nhiều nguồn thuế, TABMIS, đầu tư và dữ liệu bổ sung.", "Chưa có"),
         ("CN5", "Kiểm toán nhà nước chuyên ngành V", cn5_details, cn5_priorities, "Có đủ 3 biểu; tập trung vào hai Bộ, doanh nghiệp nhà nước và các dự án đầu tư thuộc phạm vi kiểm toán.", "Đầy đủ"),
     ]
@@ -322,7 +385,7 @@ def main():
         })
 
     priority_presence = Counter()
-    for unit in ["KV4", "KV7", "KV8", "KV12", "CN5"]:
+    for unit in ["KV3", "KV4", "KV7", "KV8", "KV9", "KV10", "KV12", "CN5"]:
         codes = {
             p["code"] for p in priorities
             if p["unit"] == unit and p["code"] and not re.fullmatch(r"BS-\d+", p["code"], flags=re.IGNORECASE)
@@ -348,6 +411,8 @@ def main():
         {"severity": "Cao", "unit": "KV4", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Hồ sơ nêu 19 ưu tiên theo 4 nhóm lĩnh vực, trong khi yêu cầu gốc quy định tối đa 10 nguồn cho một đơn vị."},
         {"severity": "Cao", "unit": "KV7", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Biểu 02 có 20 nguồn ưu tiên; cần chọn lại tối đa 10 nguồn và sắp xếp theo mức độ ưu tiên giảm dần."},
         {"severity": "Cao", "unit": "KV12", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Biểu 02 có 28 nguồn ưu tiên; cần chọn lại tối đa 10 nguồn theo yêu cầu của Công văn."},
+        {"severity": "Cao", "unit": "KV9", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Biểu 02 có 24 nguồn ưu tiên; cần chọn lại tối đa 10 nguồn và sắp xếp theo mức độ ưu tiên giảm dần."},
+        {"severity": "Cao", "unit": "KV3", "title": "Mã BS-01 chưa thống nhất", "detail": "Biểu 01 dùng BS-01 cho cả hồ sơ lập dự toán ngân sách và dữ liệu kết quả thực hiện kết luận, kiến nghị kiểm toán; cần tách mã trước khi tổng hợp toàn ngành."},
         {"severity": "Trung bình", "unit": "KV8", "title": "Mã bổ sung và số thứ tự bị lặp", "detail": "Công văn nêu 1 nguồn bổ sung nhưng phụ lục xuất hiện BS-01 đến BS-08 và nhiều đoạn đánh lại số thứ tự; cần hợp nhất trước khi tổng hợp toàn ngành."},
         {"severity": "Trung bình", "unit": "KV7", "title": "Lý do ưu tiên còn chung chung", "detail": "Nhiều dòng chỉ nêu phục vụ khảo sát/lập kế hoạch, chưa chỉ rõ hậu quả nếu thiếu dữ liệu hoặc dữ liệu giữ nguyên hình thức hiện tại."},
         {"severity": "Trung bình", "unit": "KV7", "title": "Thiếu Biểu số 03 và email người lập", "detail": "Hồ sơ hiện có 2 biểu; trường email người lập để trống và chưa có báo cáo khó khăn, vướng mắc, kiến nghị."},
