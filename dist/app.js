@@ -1,5 +1,28 @@
 (() => {
   const data = window.DASHBOARD_DATA;
+  const allowedIdentities = new Set([
+    'anhvn1', 'anhvn1@sav.gov.vn',
+    'quangnd', 'quangnd@sav.gov.vn',
+    'dungbt1', 'dungbt1@sav.gov.vn',
+    'tungnt1', 'tungnt1@sav.gov.vn'
+  ]);
+  const gate = document.querySelector('#accessGate');
+  const accessForm = document.querySelector('#accessForm');
+  const accessInput = document.querySelector('#accessIdentity');
+  const gateError = document.querySelector('#gateError');
+  if (sessionStorage.getItem('sav-dashboard-access') === 'granted') gate.classList.add('unlocked');
+  accessForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const identity = accessInput.value.trim().toLocaleLowerCase('vi');
+    if (allowedIdentities.has(identity)) {
+      sessionStorage.setItem('sav-dashboard-access', 'granted');
+      gate.classList.add('unlocked');
+      gateError.textContent = '';
+    } else {
+      gateError.textContent = 'Tài khoản hoặc email chưa được cấp quyền.';
+      accessInput.select();
+    }
+  });
   const state = { view: 'overview', page: 1, pageSize: 18, query: '', unit: '', code: '', frequency: '', issueUnit: 'Tất cả' };
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];

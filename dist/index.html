@@ -9,6 +9,21 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <section class="access-gate" id="accessGate" aria-labelledby="gateTitle">
+    <div class="gate-card">
+      <span class="gate-mark">DL</span>
+      <p class="eyebrow">KHO DỮ LIỆU KIỂM TOÁN</p>
+      <h1 id="gateTitle">Xác nhận người xem</h1>
+      <p>Nhập tên tài khoản hoặc email SAV đã được cấp quyền để mở dashboard.</p>
+      <form id="accessForm">
+        <label for="accessIdentity">Tài khoản hoặc email SAV</label>
+        <input id="accessIdentity" name="identity" type="text" autocomplete="email" spellcheck="false" placeholder="Ví dụ: tennguoidung@sav.gov.vn" required>
+        <p class="gate-error" id="gateError" role="alert"></p>
+        <button class="button primary" type="submit">Mở dashboard</button>
+      </form>
+      <small>Quyền truy cập được duy trì trong phiên làm việc hiện tại.</small>
+    </div>
+  </section>
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
