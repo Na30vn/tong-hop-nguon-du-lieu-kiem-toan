@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pdfplumber
+from docx import Document
 from openpyxl import load_workbook
 
 
@@ -97,12 +98,34 @@ def read_kv4(path):
     return details, priorities
 
 
+def read_docx_forms(path, unit):
+    doc = Document(path)
+    details, priorities = [], []
+    if doc.tables:
+        for row in doc.tables[0].rows[2:]:
+            values = [cell.text for cell in row.cells]
+            if values and re.fullmatch(r"\d+", clean(values[0])):
+                details.append(to_record(values, unit))
+    if len(doc.tables) > 1:
+        for row in doc.tables[1].rows[1:]:
+            values = [clean(cell.text) for cell in row.cells]
+            if values and re.fullmatch(r"\d+", values[0]):
+                priorities.append({
+                    "rank": int(values[0]),
+                    "code": values[1],
+                    "name": values[2],
+                    "reason": values[3],
+                    "unit": unit,
+                })
+    return details, priorities
+
+
 def copy_files(unit, folder):
     destination = FILES_OUT / unit
     destination.mkdir(parents=True, exist_ok=True)
     result = []
     for path in sorted(folder.rglob("*")):
-        if not path.is_file():
+        if not path.is_file() or path.name.startswith("~$"):
             continue
         target = destination / path.name
         shutil.copy2(path, target)
@@ -133,15 +156,19 @@ def main():
         ROOT / "K12" / "KV12. PL nguon du lieu phuc vu hoat dong kiem toan.xlsx",
         "K12", "PL01", 8, "PL02", 6,
     )
+    cn5_details, cn5_priorities = read_docx_forms(
+        ROOT / "CN5" / "Phu_bieu_01_02_03_nguon_du_lieu_KTNN_CNV.docx", "CN5"
+    )
 
-    details = kv4_details + kv7_details + kv8_details + k12_details
-    priorities = kv4_priorities + kv7_priorities + kv8_priorities + k12_priorities
+    details = kv4_details + kv7_details + kv8_details + k12_details + cn5_details
+    priorities = kv4_priorities + kv7_priorities + kv8_priorities + k12_priorities + cn5_priorities
 
     file_folders = {
         "KV4": ROOT / "KV4",
         "KV7": ROOT / "KV7",
         "KV8": ROOT / "KV8",
         "K12": ROOT / "K12",
+        "CN5": ROOT / "CN5",
     }
     files = {unit: copy_files(unit, folder) for unit, folder in file_folders.items()}
     request_files = copy_files("yeu-cau-goc", ROOT / "CV yêu cầu gốc")
@@ -151,6 +178,7 @@ def main():
         ("KV7", "Kiểm toán nhà nước khu vực VII", kv7_details, kv7_priorities, "Văn bản trả lời và phụ lục Excel; tập trung ngân sách địa phương, thuế, hải quan và đầu tư.", "Chưa có"),
         ("KV8", "Kiểm toán nhà nước khu vực VIII", kv8_details, kv8_priorities, "Có đủ 3 biểu; phạm vi mã nguồn rộng nhất trong các hồ sơ hiện có.", "Đầy đủ"),
         ("K12", "Kiểm toán nhà nước khu vực XII", k12_details, k12_priorities, "Văn bản trả lời và phụ lục Excel; nhiều nguồn thuế, TABMIS, đầu tư và dữ liệu bổ sung.", "Chưa có"),
+        ("CN5", "Kiểm toán nhà nước chuyên ngành V", cn5_details, cn5_priorities, "Có đủ 3 biểu; tập trung vào hai Bộ, doanh nghiệp nhà nước và các dự án đầu tư thuộc phạm vi kiểm toán.", "Đầy đủ"),
     ]
     units = []
     for code, name, unit_details, unit_priorities, note, form3 in unit_defs:
@@ -167,7 +195,7 @@ def main():
         })
 
     priority_presence = Counter()
-    for unit in ["KV4", "KV7", "KV8", "K12"]:
+    for unit in ["KV4", "KV7", "KV8", "K12", "CN5"]:
         codes = {p["code"] for p in priorities if p["unit"] == unit and p["code"]}
         priority_presence.update(codes)
     common = [

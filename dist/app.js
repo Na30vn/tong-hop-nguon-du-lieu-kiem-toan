@@ -42,7 +42,6 @@
 
   function renderOverview() {
     $('#updatedAt').textContent = new Date(data.meta.updated).toLocaleString('vi-VN');
-    $('#objective').textContent = data.request.objective;
     const req = data.request.files[0];
     $('#requestDownload').innerHTML = req ? `<a class="button ghost" download href="${link(req.download)}">Tải yêu cầu gốc</a>` : '';
     const metrics = [
@@ -58,7 +57,7 @@
       <div class="form-pill ${u.form3 === 'Chưa có' ? 'missing' : u.form3 === 'Một phần' ? 'partial' : ''}">${u.form3 === 'Đầy đủ' ? 'Biểu 03' : u.form3}</div>
       <div class="unit-total">${fmt(u.files.length)} tệp</div></div>`).join('');
     const max = Math.max(...data.common_priorities.map(x => x.units));
-    $('#commonPriorities').innerHTML = data.common_priorities.slice(0,8).map(x => `<div class="bar-item"><code>${esc(x.code)}</code><div class="bar-track"><div class="bar-fill" style="width:${x.units/max*100}%"></div></div><span>${x.units}/4</span></div>`).join('');
+    $('#commonPriorities').innerHTML = data.common_priorities.slice(0,8).map(x => `<div class="bar-item"><code>${esc(x.code)}</code><div class="bar-track"><div class="bar-fill" style="width:${x.units/max*100}%"></div></div><span>${x.units}/${data.meta.unit_count}</span></div>`).join('');
     const kv8 = data.priorities.filter(p => p.unit === 'KV8').slice(0,10);
     $('#priorityHighlights').innerHTML = kv8.map(p => `<div class="priority-item"><span class="rank">${String(p.rank).padStart(2,'0')}</span><code>${esc(p.code)}</code><span>${esc(p.name)}</span></div>`).join('');
     $('#issueCount').textContent = data.issues.length;
