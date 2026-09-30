@@ -128,13 +128,15 @@ def copy_files(unit, folder):
         if not path.is_file() or path.name.startswith("~$"):
             continue
         target = destination / path.name
-        shutil.copy2(path, target)
+        source_stat = path.stat()
+        if not target.exists() or target.stat().st_size != source_stat.st_size:
+            shutil.copy2(path, target)
         result.append({
             "name": path.name,
             "download": f"files/{unit}/{path.name}",
             "type": path.suffix.lower().lstrip(".").upper(),
-            "size": path.stat().st_size,
-            "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="minutes"),
+            "size": source_stat.st_size,
+            "updated": datetime.fromtimestamp(source_stat.st_mtime).isoformat(timespec="minutes"),
         })
     return result
 
@@ -154,7 +156,7 @@ def main():
     )
     k12_details, k12_priorities = read_excel(
         ROOT / "K12" / "KV12. PL nguon du lieu phuc vu hoat dong kiem toan.xlsx",
-        "K12", "PL01", 8, "PL02", 6,
+        "KV12", "PL01", 8, "PL02", 6,
     )
     cn5_details, cn5_priorities = read_docx_forms(
         ROOT / "CN5" / "Phu_bieu_01_02_03_nguon_du_lieu_KTNN_CNV.docx", "CN5"
@@ -167,7 +169,7 @@ def main():
         "KV4": ROOT / "KV4",
         "KV7": ROOT / "KV7",
         "KV8": ROOT / "KV8",
-        "K12": ROOT / "K12",
+        "KV12": ROOT / "K12",
         "CN5": ROOT / "CN5",
     }
     files = {unit: copy_files(unit, folder) for unit, folder in file_folders.items()}
@@ -177,7 +179,7 @@ def main():
         ("KV4", "Kiểm toán nhà nước khu vực IV", kv4_details, kv4_priorities, "Một PDF 16 trang; tách nội dung theo 4 lĩnh vực kiểm toán.", "Một phần"),
         ("KV7", "Kiểm toán nhà nước khu vực VII", kv7_details, kv7_priorities, "Văn bản trả lời và phụ lục Excel; tập trung ngân sách địa phương, thuế, hải quan và đầu tư.", "Chưa có"),
         ("KV8", "Kiểm toán nhà nước khu vực VIII", kv8_details, kv8_priorities, "Có đủ 3 biểu; phạm vi mã nguồn rộng nhất trong các hồ sơ hiện có.", "Đầy đủ"),
-        ("K12", "Kiểm toán nhà nước khu vực XII", k12_details, k12_priorities, "Văn bản trả lời và phụ lục Excel; nhiều nguồn thuế, TABMIS, đầu tư và dữ liệu bổ sung.", "Chưa có"),
+        ("KV12", "Kiểm toán nhà nước khu vực XII", k12_details, k12_priorities, "Văn bản trả lời và phụ lục Excel; nhiều nguồn thuế, TABMIS, đầu tư và dữ liệu bổ sung.", "Chưa có"),
         ("CN5", "Kiểm toán nhà nước chuyên ngành V", cn5_details, cn5_priorities, "Có đủ 3 biểu; tập trung vào hai Bộ, doanh nghiệp nhà nước và các dự án đầu tư thuộc phạm vi kiểm toán.", "Đầy đủ"),
     ]
     units = []
@@ -195,7 +197,7 @@ def main():
         })
 
     priority_presence = Counter()
-    for unit in ["KV4", "KV7", "KV8", "K12", "CN5"]:
+    for unit in ["KV4", "KV7", "KV8", "KV12", "CN5"]:
         codes = {p["code"] for p in priorities if p["unit"] == unit and p["code"]}
         priority_presence.update(codes)
     common = [
@@ -207,11 +209,11 @@ def main():
         {"severity": "Cao", "unit": "KV8", "title": "Mã BS-01 chưa thống nhất", "detail": "Biểu 02 xếp BS-01 là báo cáo nguồn và nhu cầu cải cách tiền lương, trong khi Biểu 01 dùng BS-01 cho giấy phép khai thác khoáng sản; báo cáo cải cách tiền lương mang mã BS-02."},
         {"severity": "Cao", "unit": "KV4", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Hồ sơ nêu 19 ưu tiên theo 4 nhóm lĩnh vực, trong khi yêu cầu gốc quy định tối đa 10 nguồn cho một đơn vị."},
         {"severity": "Cao", "unit": "KV7", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Biểu 02 có 20 nguồn ưu tiên; cần chọn lại tối đa 10 nguồn và sắp xếp theo mức độ ưu tiên giảm dần."},
-        {"severity": "Cao", "unit": "K12", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Biểu 02 có 28 nguồn ưu tiên; cần chọn lại tối đa 10 nguồn theo yêu cầu của Công văn."},
+        {"severity": "Cao", "unit": "KV12", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Biểu 02 có 28 nguồn ưu tiên; cần chọn lại tối đa 10 nguồn theo yêu cầu của Công văn."},
         {"severity": "Trung bình", "unit": "KV8", "title": "Mã bổ sung và số thứ tự bị lặp", "detail": "Công văn nêu 1 nguồn bổ sung nhưng phụ lục xuất hiện BS-01 đến BS-08 và nhiều đoạn đánh lại số thứ tự; cần hợp nhất trước khi tổng hợp toàn ngành."},
         {"severity": "Trung bình", "unit": "KV7", "title": "Lý do ưu tiên còn chung chung", "detail": "Nhiều dòng chỉ nêu phục vụ khảo sát/lập kế hoạch, chưa chỉ rõ hậu quả nếu thiếu dữ liệu hoặc dữ liệu giữ nguyên hình thức hiện tại."},
         {"severity": "Trung bình", "unit": "KV7", "title": "Thiếu Biểu số 03 và email người lập", "detail": "Hồ sơ hiện có 2 biểu; trường email người lập để trống và chưa có báo cáo khó khăn, vướng mắc, kiến nghị."},
-        {"severity": "Trung bình", "unit": "K12", "title": "Thiếu Biểu số 03", "detail": "Hồ sơ hiện có Biểu 01 và Biểu 02 nhưng chưa có báo cáo khó khăn, vướng mắc và kiến nghị."},
+        {"severity": "Trung bình", "unit": "KV12", "title": "Thiếu Biểu số 03", "detail": "Hồ sơ hiện có Biểu 01 và Biểu 02 nhưng chưa có báo cáo khó khăn, vướng mắc và kiến nghị."},
         {"severity": "Theo dõi", "unit": "KV4", "title": "Biểu số 03 chưa bao phủ đủ 4 lĩnh vực", "detail": "Có báo cáo vướng mắc cho đầu tư, chi NSNN và thu NSNN; chưa thấy phần tương ứng cho doanh nghiệp và tổ chức tài chính, ngân hàng."},
     ]
 
@@ -244,7 +246,7 @@ def main():
         "issues": issues,
     }
     (DIST / "data.js").write_text("window.DASHBOARD_DATA = " + json.dumps(data, ensure_ascii=False) + ";\n", encoding="utf-8")
-    print(json.dumps(data["meta"], ensure_ascii=False))
+    print(json.dumps(data["meta"], ensure_ascii=True))
 
 
 if __name__ == "__main__":

@@ -30,6 +30,8 @@
   const fmt = n => new Intl.NumberFormat('vi-VN').format(n);
   const fileSize = bytes => bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
   const link = path => encodeURI(path).replace(/#/g, '%23');
+  const unitByCode = code => data.units.find(u => u.code === code);
+  const unitName = code => unitByCode(code)?.name || code;
 
   function switchView(view) {
     state.view = view;
@@ -52,7 +54,7 @@
     ];
     $('#metrics').innerHTML = metrics.map(([n,label]) => `<div class="metric"><strong>${fmt(n)}</strong><span>${label}</span></div>`).join('');
     $('#unitProgress').innerHTML = data.units.map(u => `<div class="unit-row">
-      <div class="unit-name"><strong>${esc(u.code)}</strong><small>${fmt(u.detail_count)} nguồn · ${fmt(u.priority_count)} ưu tiên</small></div>
+      <div class="unit-name"><strong>${esc(u.name)}</strong><small>${esc(u.code)} · ${fmt(u.detail_count)} nguồn · ${fmt(u.priority_count)} ưu tiên</small></div>
       <div class="form-pill">Biểu 01</div><div class="form-pill">Biểu 02</div>
       <div class="form-pill ${u.form3 === 'Chưa có' ? 'missing' : u.form3 === 'Một phần' ? 'partial' : ''}">${u.form3 === 'Đầy đủ' ? 'Biểu 03' : u.form3}</div>
       <div class="unit-total">${fmt(u.files.length)} tệp</div></div>`).join('');
@@ -61,7 +63,7 @@
     const kv8 = data.priorities.filter(p => p.unit === 'KV8').slice(0,10);
     $('#priorityHighlights').innerHTML = kv8.map(p => `<div class="priority-item"><span class="rank">${String(p.rank).padStart(2,'0')}</span><code>${esc(p.code)}</code><span>${esc(p.name)}</span></div>`).join('');
     $('#issueCount').textContent = data.issues.length;
-    $('#issuePreview').innerHTML = data.issues.slice(0,3).map(i => `<div class="issue-mini"><strong>${esc(i.title)}</strong><span>${esc(i.unit)} · ${esc(i.severity)}</span></div>`).join('');
+    $('#issuePreview').innerHTML = data.issues.slice(0,3).map(i => `<div class="issue-mini"><strong>${esc(i.title)}</strong><span>${esc(unitName(i.unit))} · ${esc(i.severity)}</span></div>`).join('');
   }
 
   function filteredDetails() {
@@ -79,13 +81,13 @@
     const slice = rows.slice((state.page-1)*state.pageSize, state.page*state.pageSize);
     $('#catalogCount').textContent = `${fmt(rows.length)} kết quả`;
     $('#catalogBody').innerHTML = slice.length ? slice.map((r, idx) => `<tr>
-      <td class="row-unit">${esc(r.unit)}</td><td><code>${esc(r.code)}</code></td><td>${esc(r.group)}</td><td>${esc(r.name)}</td><td>${esc(r.stages)}</td><td>${esc(r.frequency)}</td>
+      <td class="row-unit"><strong>${esc(unitName(r.unit))}</strong><small>${esc(r.unit)}</small></td><td><code>${esc(r.code)}</code></td><td>${esc(r.group)}</td><td>${esc(r.name)}</td><td>${esc(r.stages)}</td><td>${esc(r.frequency)}</td>
       <td><button class="row-more" data-detail-index="${data.details.indexOf(r)}">Chi tiết</button></td></tr>`).join('') : `<tr><td colspan="7" class="empty">Không có kết quả phù hợp.</td></tr>`;
     $('#pagination').innerHTML = Array.from({length:pages},(_,i)=>i+1).slice(Math.max(0,state.page-3),Math.min(pages,state.page+2)).map(p => `<button class="page-btn ${p===state.page?'active':''}" data-page="${p}">${p}</button>`).join('');
   }
 
   function renderFilters() {
-    $('#unitFilter').innerHTML += data.units.map(u => `<option value="${u.code}">${u.code}</option>`).join('');
+    $('#unitFilter').innerHTML += data.units.map(u => `<option value="${u.code}">${esc(u.name)}</option>`).join('');
     const codes = [...new Set(data.details.map(r => r.code).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
     $('#codeFilter').innerHTML += codes.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
   }
@@ -103,14 +105,14 @@
 
   function renderIssues() {
     const units = ['Tất cả', ...data.units.map(u => u.code)];
-    $('#issueFilters').innerHTML = units.map(u => `<button class="filter-chip ${u===state.issueUnit?'active':''}" data-issue-unit="${u}">${u}</button>`).join('');
+    $('#issueFilters').innerHTML = units.map(u => `<button class="filter-chip ${u===state.issueUnit?'active':''}" data-issue-unit="${u}">${u === 'Tất cả' ? u : esc(unitName(u))}</button>`).join('');
     const items = data.issues.filter(i => state.issueUnit === 'Tất cả' || i.unit === state.issueUnit);
-    $('#issuesList').innerHTML = items.map(i => `<article class="issue-card ${i.severity==='Cao'?'high':''}"><span class="severity">${esc(i.severity)}</span><span class="issue-unit">${esc(i.unit)}</span><div><h3>${esc(i.title)}</h3><p>${esc(i.detail)}</p></div></article>`).join('');
+    $('#issuesList').innerHTML = items.map(i => `<article class="issue-card ${i.severity==='Cao'?'high':''}"><span class="severity">${esc(i.severity)}</span><span class="issue-unit">${esc(unitName(i.unit))}</span><div><h3>${esc(i.title)}</h3><p>${esc(i.detail)}</p></div></article>`).join('');
   }
 
   function openDetail(index) {
     const r = data.details[index];
-    $('#dialogContent').innerHTML = `<div class="dialog-body"><h2>${esc(r.name || r.group)}</h2><span class="dialog-code">${esc(r.unit)} · ${esc(r.code)}</span><div class="detail-grid">
+    $('#dialogContent').innerHTML = `<div class="dialog-body"><h2>${esc(r.name || r.group)}</h2><span class="dialog-code">${esc(unitName(r.unit))} · ${esc(r.code)}</span><div class="detail-grid">
       ${[['Nhóm dữ liệu',r.group],['Lĩnh vực',r.field],['Giai đoạn sử dụng',r.stages],['Mức độ sử dụng',r.frequency],['Cơ quan quản lý',r.owner],['Hình thức hiện có',r.format],['Nội dung, chỉ tiêu',r.indicators],['Mục đích kiểm toán',r.purpose]].map(([k,v],i)=>`<div class="detail-block ${i>5?'wide':''}"><strong>${k}</strong><span>${esc(v||'Chưa nêu')}</span></div>`).join('')}</div></div>`;
     $('#detailDialog').showModal();
   }
