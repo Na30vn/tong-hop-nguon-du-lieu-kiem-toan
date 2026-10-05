@@ -58,7 +58,7 @@
       <section class="view active" id="view-overview">
         <div class="brief">
           <div>
-            <p class="eyebrow">CÔNG VĂN 998/CNTT-UDDLS · CẬP NHẬT 30/9/2026</p>
+            <p class="eyebrow">CÔNG VĂN 998/CNTT-UDDLS · <span id="briefUpdated"></span></p>
             <h2>Tổng hợp phản hồi xác định nguồn dữ liệu</h2>
             <p>Theo dõi tiến độ, danh mục ưu tiên và hồ sơ các đơn vị.</p>
           </div>
@@ -69,6 +69,13 @@
         </div>
 
         <div class="metrics" id="metrics"></div>
+
+        <article class="panel response-panel" aria-labelledby="responseTitle">
+          <div class="panel-head"><div><p class="eyebrow">TIẾN ĐỘ PHẢN HỒI</p><h3 id="responseTitle">Đơn vị chưa gửi</h3></div><span class="response-summary" id="responseSummary"></span></div>
+          <progress id="responseProgress" max="30" value="0" aria-label="Tiến độ các đơn vị đã phản hồi"></progress>
+          <p class="legend">Đối chiếu danh sách 30 đơn vị với hồ sơ đã tiếp nhận trong thư mục.</p>
+          <div class="pending-groups" id="pendingUnits"></div>
+        </article>
 
         <div class="overview-grid">
           <article class="panel span-7">
@@ -112,6 +119,7 @@
       <section class="view" id="view-units">
         <div class="section-intro"><div><p class="eyebrow">HỒ SƠ TIẾP NHẬN</p><h2>Đơn vị và hồ sơ</h2><p>Mỗi đơn vị được tóm tắt trên một dòng, kèm nút tải từng tệp gốc.</p></div></div>
         <div class="unit-cards" id="unitCards"></div>
+        <article class="panel pending-unit-panel"><div class="panel-head"><h3>Đơn vị chưa gửi hồ sơ</h3><span class="coverage" id="pendingCount"></span></div><div class="pending-groups" id="pendingUnitList"></div></article>
       </section>
 
       <section class="view" id="view-issues">

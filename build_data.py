@@ -15,7 +15,8 @@ from openpyxl import load_workbook
 
 PROJECT = Path(__file__).resolve().parent
 ROOT = PROJECT.parent
-DIST = PROJECT / "dist"
+PREVIEW_ONLY = "--preview" in sys.argv
+DIST = PROJECT / "tmp" / "preview" if PREVIEW_ONLY else PROJECT / "dist"
 FILES_OUT = DIST / "files"
 
 HEADERS = [
@@ -72,6 +73,30 @@ FREQUENCY_MAP = {
     "3": "Không thường xuyên",
 }
 
+# The 30-unit roster supplied by the user is the baseline for response tracking.
+UNIT_ROSTER = [
+    ("VP", "Văn phòng Kiểm toán nhà nước", "Tham mưu"),
+    ("TCCB", "Vụ Tổ chức cán bộ", "Tham mưu"),
+    ("VTH", "Vụ Tổng hợp", "Tham mưu"),
+    ("VCS", "Vụ Chính sách kiểm toán nhà nước", "Tham mưu"),
+    ("PC", "Vụ Pháp chế", "Tham mưu"),
+    ("HTQT", "Vụ Hợp tác quốc tế", "Tham mưu"),
+    ("TTRA", "Thanh tra Kiểm toán nhà nước", "Tham mưu"),
+    ("VPDU", "Văn phòng Đảng ủy", "Tham mưu"),
+    ("CNTT", "Cục Công nghệ thông tin", "Tham mưu"),
+    ("CNIa", "Kiểm toán nhà nước chuyên ngành Ia", "Chuyên ngành"),
+    ("CNIb", "Kiểm toán nhà nước chuyên ngành Ib", "Chuyên ngành"),
+    ("CN2", "Kiểm toán nhà nước chuyên ngành II", "Chuyên ngành"),
+    ("CN3", "Kiểm toán nhà nước chuyên ngành III", "Chuyên ngành"),
+    ("CN4", "Kiểm toán nhà nước chuyên ngành IV", "Chuyên ngành"),
+    ("CN5", "Kiểm toán nhà nước chuyên ngành V", "Chuyên ngành"),
+    ("CN6", "Kiểm toán nhà nước chuyên ngành VI", "Chuyên ngành"),
+    *[(f"KV{i}", f"Kiểm toán nhà nước khu vực {roman}", "Khu vực")
+      for i, roman in enumerate(["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"], 1)],
+    ("TRUONG", "Trường Đào tạo và Bồi dưỡng nghiệp vụ kiểm toán", "Sự nghiệp"),
+    ("BAO", "Báo Kiểm toán", "Sự nghiệp"),
+]
+
 
 def clean(value):
     if value is None:
@@ -101,9 +126,14 @@ def expand_code_list(value, mapping, alpha=False):
     # complete cell before splitting because the subject itself may contain
     # commas (for example: "6 - Quản lý, sử dụng đất đai").
     if mapping is FIELD_MAP:
-        field_with_note = re.fullmatch(r"0?([1-7])\s*[-–:]\s*(.+)", text)
+        field_with_note = re.fullmatch(r"([0-9\s,;/.+]+)\s*[-–:]\s*(.+)", text)
         if field_with_note:
-            return f"{mapping[field_with_note.group(1)]}: {field_with_note.group(2)}"
+            codes = re.findall(r"\d+", field_with_note.group(1))
+            keys = [code.lstrip('0') or '0' for code in codes]
+            if all(key in mapping for key in keys):
+                labels = list(dict.fromkeys(mapping[key] for key in keys))
+                labels[-1] += f": {field_with_note.group(2)}"
+                return "; ".join(labels)
 
     # Excel sometimes turns lists such as "2.3" or "1.2" into decimal-like
     # values. In these classification columns the dot is a separator, not a
@@ -149,6 +179,7 @@ def to_record(values, unit):
     raw_values = list(values)[:12]
     raw_values += [""] * (12 - len(raw_values))
     record = dict(zip(HEADERS, [clean(value) for value in raw_values]))
+    record["code"] = re.sub(r"\s*-\s*", "-", record["code"])
     record["field"] = expand_code_list(raw_values[2], FIELD_MAP)
     record["stages"] = expand_code_list(raw_values[3], STAGE_MAP, alpha=True)
     record["source_type"] = expand_code_list(raw_values[8], SOURCE_TYPE_MAP)
@@ -391,6 +422,9 @@ def copy_files(unit, folder):
 
 def main():
     DIST.mkdir(parents=True, exist_ok=True)
+    if PREVIEW_ONLY:
+        for asset in ("index.html", "styles.css", "app.js"):
+            shutil.copy2(PROJECT / "dist" / asset, DIST / asset)
     FILES_OUT.mkdir(parents=True, exist_ok=True)
 
     kv4_details, kv4_priorities = read_kv4(ROOT / "KV4" / "KTNN KV4 _CV998.pdf")
@@ -435,6 +469,18 @@ def main():
         "VTH", [2, 3], [4], merge_continuations=True,
     )
     vcs_details, vcs_priorities = [], []
+    cnib_details, cnib_priorities = read_pdf_forms(
+        ROOT / "CN Ib" / "CV gửi xác định nguồn dữ liệu-Cục CNTT.pdf",
+        "CNIb", range(2, 6), [], merge_continuations=True,
+    )
+    cn3_details, cn3_priorities = read_pdf_forms(
+        ROOT / "CN III" / "2.in 30.9. lại. CV nguồn dữ liệu.pdf",
+        "CN3", range(1, 13), [13, 14], merge_continuations=True,
+    )
+    cn6_details, cn6_priorities = read_pdf_forms(
+        ROOT / "CN VI" / "CN VI Cong van tra loi CV 998_CNTT_UDDLS.pdf",
+        "CN6", range(3, 32), [32, 33], merge_continuations=True,
+    )
     vp_details, vp_priorities = [], []
     thanh_tra_details = [
         to_record([
@@ -453,15 +499,18 @@ def main():
     details = (
         vp_details + vth_details + vcs_details + thanh_tra_details + kv3_details + kv4_details
         + kv6_details + kv7_details + kv8_details + kv9_details + kv10_details + kv11_details
-        + k12_details + cn4_details + cn5_details
+        + k12_details + cnib_details + cn3_details + cn4_details + cn5_details + cn6_details
     )
     priorities = (
         vp_priorities + vth_priorities + vcs_priorities + thanh_tra_priorities + kv3_priorities
         + kv4_priorities + kv6_priorities + kv7_priorities + kv8_priorities + kv9_priorities
-        + kv10_priorities + kv11_priorities + k12_priorities + cn4_priorities + cn5_priorities
+        + kv10_priorities + kv11_priorities + k12_priorities + cnib_priorities + cn3_priorities + cn4_priorities + cn5_priorities + cn6_priorities
     )
 
     file_folders = {
+        "CNIb": ROOT / "CN Ib",
+        "CN3": ROOT / "CN III",
+        "CN6": ROOT / "CN VI",
         "VP": ROOT / "VP KTNN",
         "VTH": ROOT / "Vụ TH",
         "VCS": ROOT / "Vụ Chính sách KTNN",
@@ -482,6 +531,9 @@ def main():
     request_files = copy_files("yeu-cau-goc", ROOT / "CV yêu cầu gốc")
 
     unit_defs = [
+        ("CNIb", "Kiểm toán nhà nước chuyên ngành Ib", cnib_details, cnib_priorities, "Có 14 dòng danh mục; chưa kèm danh sách ưu tiên và báo cáo khó khăn, vướng mắc, kiến nghị.", "Đầy đủ", "Chưa có", "Chưa có"),
+        ("CN3", "Kiểm toán nhà nước chuyên ngành III", cn3_details, cn3_priorities, "Có đủ 3 biểu; danh mục ngân sách, đầu tư, doanh nghiệp và các nguồn bổ sung.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
+        ("CN6", "Kiểm toán nhà nước chuyên ngành VI", cn6_details, cn6_priorities, "Có đủ 3 biểu; danh mục ngân hàng, bảo hiểm, bảo hiểm xã hội và chứng khoán.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("VP", "Văn phòng Kiểm toán nhà nước", vp_details, vp_priorities, "Văn bản số 299/VP-TKTH xác nhận không phát sinh nội dung theo yêu cầu của Công văn 998.", "Không phát sinh", "Không phát sinh", "Không phát sinh"),
         ("VTH", "Vụ Tổng hợp", vth_details, vth_priorities, "Có đủ 3 biểu; gồm 10 nguồn phục vụ tổng hợp, lập kế hoạch và báo cáo toàn Ngành.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("VCS", "Vụ Chính sách kiểm toán nhà nước", vcs_details, vcs_priorities, "Phiếu trao đổi chưa kèm Biểu 01, 02, 03; đề nghị tổng hợp từ các đơn vị có chức năng và đơn vị chủ trì kiểm toán.", "Chưa có", "Chưa có", "Chưa có"),
@@ -498,6 +550,8 @@ def main():
         ("CN4", "Kiểm toán nhà nước chuyên ngành IV", cn4_details, cn4_priorities, "Có đủ 3 biểu; gồm 17 nguồn dữ liệu về ngân sách, đầu tư, doanh nghiệp và kết quả kiểm tra.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("CN5", "Kiểm toán nhà nước chuyên ngành V", cn5_details, cn5_priorities, "Có đủ 3 biểu; tập trung vào hai Bộ, doanh nghiệp nhà nước và các dự án đầu tư thuộc phạm vi kiểm toán.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
     ]
+    roster_order = {code: index for index, (code, _, _) in enumerate(UNIT_ROSTER)}
+    unit_defs.sort(key=lambda unit: roster_order[unit[0]])
     units = []
     for code, name, unit_details, unit_priorities, note, form1, form2, form3 in unit_defs:
         units.append({
@@ -511,6 +565,12 @@ def main():
             "note": note,
             "files": files[code],
         })
+
+    received_codes = {unit["code"] for unit in units}
+    pending_units = [
+        {"code": code, "name": name, "group": group}
+        for code, name, group in UNIT_ROSTER if code not in received_codes
+    ]
 
     priority_presence = Counter()
     for unit, *_ in unit_defs:
@@ -537,6 +597,8 @@ def main():
     ][:12]
 
     issues = [
+        {"severity": "Trung bình", "unit": "CNIb", "title": "Chưa có Biểu số 02 và 03", "detail": "Hồ sơ hiện có danh mục 14 dòng; hai trang cuối trống, chưa có danh sách nguồn ưu tiên và báo cáo khó khăn, vướng mắc, kiến nghị."},
+        {"severity": "Trung bình", "unit": "CN3", "title": "Số thứ tự 46 bị lặp", "detail": "Hai dòng cuối Biểu 01 cùng đánh số 46 (BS-14, BS-15); tổng thực tế là 47 dòng, cần chuẩn hóa số thứ tự."},
         {"severity": "Cao", "unit": "KV8", "title": "Mã BS-01 chưa thống nhất", "detail": "Biểu 02 xếp BS-01 là báo cáo nguồn và nhu cầu cải cách tiền lương, trong khi Biểu 01 dùng BS-01 cho giấy phép khai thác khoáng sản; báo cáo cải cách tiền lương mang mã BS-02."},
         {"severity": "Cao", "unit": "KV4", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Hồ sơ nêu 19 ưu tiên theo 4 nhóm lĩnh vực, trong khi yêu cầu gốc quy định tối đa 10 nguồn cho một đơn vị."},
         {"severity": "Cao", "unit": "KV7", "title": "Danh sách ưu tiên vượt giới hạn", "detail": "Biểu 02 có 20 nguồn ưu tiên; cần chọn lại tối đa 10 nguồn và sắp xếp theo mức độ ưu tiên giảm dần."},
@@ -577,6 +639,8 @@ def main():
             "files": request_files,
         },
         "units": units,
+        "pending_units": pending_units,
+        "unit_roster": [{"code": code, "name": name, "group": group} for code, name, group in UNIT_ROSTER],
         "details": details,
         "priorities": priorities,
         "common_priorities": common,

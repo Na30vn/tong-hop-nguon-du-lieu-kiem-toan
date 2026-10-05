@@ -31,7 +31,7 @@
   const fileSize = bytes => bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
   const link = path => encodeURI(path).replace(/#/g, '%23');
   const unitByCode = code => data.units.find(u => u.code === code);
-  const shortUnitName = name => String(name || '').replace(/^Kiểm toán nhà nước\s+/i, 'KTNN ');
+  const shortUnitName = name => String(name || '').replace(/Kiểm toán nhà nước/gi, 'KTNN');
   const unitName = code => shortUnitName(unitByCode(code)?.name || code);
   const formPill = (label, status) => {
     const stateClass = status === 'Chưa có' ? 'missing' : status === 'Một phần' ? 'partial' : status === 'Không phát sinh' ? 'not-applicable' : '';
@@ -51,6 +51,16 @@
 
   function renderOverview() {
     $('#updatedAt').textContent = new Date(data.meta.updated).toLocaleString('vi-VN');
+    $('#briefUpdated').textContent = `CẬP NHẬT ${new Date(data.meta.updated).toLocaleDateString('vi-VN')}`;
+    const pending = data.pending_units || [];
+    const total = data.unit_roster?.length || data.units.length;
+    $('#responseSummary').textContent = `${data.units.length}/${total} đã gửi · ${pending.length} chưa gửi`;
+    $('#responseProgress').max = total;
+    $('#responseProgress').value = data.units.length;
+    const pendingMarkup = pending.length ? [...new Set(pending.map(u => u.group))].map(group => `<section class="pending-group"><h4>${esc(group)}</h4><div class="pending-tags">${pending.filter(u => u.group === group).map(u => `<span class="pending-tag">${esc(shortUnitName(u.name))}</span>`).join('')}</div></section>`).join('') : '<p>Đã nhận hồ sơ của tất cả đơn vị.</p>';
+    $('#pendingUnits').innerHTML = pendingMarkup;
+    $('#pendingUnitList').innerHTML = pendingMarkup;
+    $('#pendingCount').textContent = `${pending.length} đơn vị`;
     const req = data.request.files[0];
     $('#requestDownload').innerHTML = req ? `<a class="button ghost" download href="${link(req.download)}">Tải yêu cầu gốc</a>` : '';
     const metrics = [

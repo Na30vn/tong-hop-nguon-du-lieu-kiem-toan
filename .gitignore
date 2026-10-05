@@ -4,3 +4,6 @@ dashboard-mobile.png
 qa_site.mjs
 site-package*
 *.tar.gz
+tmp/
+output/playwright/
+__pycache__/
