@@ -146,7 +146,7 @@
   function openDetail(index) {
     const r = data.details[index];
     $('#dialogContent').innerHTML = `<div class="dialog-body"><h2>${esc(r.name || r.group)}</h2><span class="dialog-code">${esc(unitName(r.unit))} · ${esc(r.code)}</span><div class="detail-grid">
-      ${[['Nhóm dữ liệu',r.group],['Lĩnh vực kiểm toán',r.field],['Giai đoạn sử dụng',r.stages],['Mức độ sử dụng',r.frequency],['Cơ quan quản lý',r.owner],['Loại nguồn',r.source_type],['Hình thức dữ liệu hiện có',r.format],['Nội dung, chỉ tiêu',r.indicators],['Mục đích kiểm toán',r.purpose]].map(([k,v],i)=>`<div class="detail-block ${i>6?'wide':''}"><strong>${k}</strong><span>${esc(v||'Chưa nêu')}</span></div>`).join('')}</div></div>`;
+      ${[['Nhóm dữ liệu',r.group],['Lĩnh vực kiểm toán',r.field],['Giai đoạn sử dụng',r.stages],['Mức độ sử dụng',r.frequency],['Cơ quan quản lý',r.owner],['Loại nguồn',r.source_type],['Hình thức dữ liệu hiện có',r.format],['Nội dung, chỉ tiêu',r.indicators],['Mục đích kiểm toán',r.purpose],...(r.note ? [['Ghi chú hồ sơ',r.note]] : [])].map(([k,v],i)=>`<div class="detail-block ${i>6?'wide':''}"><strong>${k}</strong><span>${esc(v||'Chưa nêu')}</span></div>`).join('')}</div></div>`;
     $('#detailDialog').showModal();
   }
 

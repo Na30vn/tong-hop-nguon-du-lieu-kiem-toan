@@ -39,6 +39,7 @@ STAGE_MAP = {
     "A2": "Thực hiện kiểm toán",
     "A3": "Lập và gửi báo cáo kiểm toán",
     "A4": "Theo dõi thực hiện kết luận, kiến nghị kiểm toán",
+    "A5": "Chưa xác định (mã giai đoạn ngoài danh mục chuẩn)",
     "B1": "Xây dựng kế hoạch kiểm toán trung hạn và hằng năm",
     "B2": "Kiểm soát chất lượng kiểm toán",
     "B3": "Tổng hợp, báo cáo kết quả kiểm toán",
@@ -57,6 +58,7 @@ SOURCE_TYPE_MAP = {
 }
 
 FORMAT_MAP = {
+    "0": "Chưa xác định (mã ngoài danh mục hình thức chuẩn)",
     "1": "Bản giấy",
     "2": "Bản scan hoặc PDF không bóc tách được",
     "3": "Tệp văn bản hoặc bảng tính rời",
@@ -186,6 +188,8 @@ def to_record(values, unit):
     record["format"] = expand_code_list(raw_values[9], FORMAT_MAP)
     record["frequency"] = normalize_frequency(raw_values[11])
     record["unit"] = unit
+    if len(values) > 12 and clean(values[12]):
+        record["note"] = clean(values[12])
     return record
 
 
@@ -294,9 +298,9 @@ def read_pdf_forms(path, unit, detail_pages, priority_pages, merge_continuations
                         and re.fullmatch(r"\d+", clean(row[0]))
                         and clean(row[1]) not in {"", "2", "Mã nguồn"}
                     ):
-                        raw_details.append(list(row[:12]))
+                        raw_details.append(list(row[:13]))
                     elif merge_continuations and raw_details and row and len(row) >= 12 and not clean(row[0]):
-                        for index, value in enumerate(row[:12]):
+                        for index, value in enumerate(row[:len(raw_details[-1])]):
                             continuation = clean(value)
                             if continuation:
                                 raw_details[-1][index] = clean(f"{raw_details[-1][index] or ''} {continuation}")
@@ -487,6 +491,20 @@ def main():
         "VTH", [2, 3], [4], merge_continuations=True,
     )
     vcs_details, vcs_priorities = [], []
+    kv1_details, kv1_priorities = read_pdf_forms(
+        ROOT / "KV1" / "Phụ lục  CSDL hoạt động KT.pdf",
+        "KV1", range(1, 5), [5, 6], merge_continuations=True,
+    )
+    kv5_details, kv5_priorities = read_pdf_forms(
+        ROOT / "KV5" / "BIEU SO 1.pdf",
+        "KV5", range(1, 5), [], merge_continuations=True,
+    )
+    # The repeated notes overflow the printed cells. The first row and row 14
+    # show the complete wording; use that verified text, not overlapping glyphs.
+    kv5_note = kv5_details[0].get("note", "")
+    for record in kv5_details:
+        if record.get("note"):
+            record["note"] = kv5_note
     cnia_details, cnia_priorities = read_excel(
         ROOT / "Cn Ia" / "Bieu 01 02.xlsx", "CNIa", "Biểu 01", 8, "Biểu 02", 7,
     )
@@ -518,17 +536,19 @@ def main():
     thanh_tra_priorities = []
 
     details = (
-        vp_details + vth_details + vcs_details + thanh_tra_details + kv3_details + kv4_details
+        vp_details + vth_details + vcs_details + thanh_tra_details + kv1_details + kv5_details + kv3_details + kv4_details
         + kv6_details + kv7_details + kv8_details + kv9_details + kv10_details + kv11_details
         + k12_details + cnia_details + cnib_details + cn3_details + cn4_details + cn5_details + cn6_details
     )
     priorities = (
-        vp_priorities + vth_priorities + vcs_priorities + thanh_tra_priorities + kv3_priorities
+        vp_priorities + vth_priorities + vcs_priorities + thanh_tra_priorities + kv1_priorities + kv5_priorities + kv3_priorities
         + kv4_priorities + kv6_priorities + kv7_priorities + kv8_priorities + kv9_priorities
         + kv10_priorities + kv11_priorities + k12_priorities + cnia_priorities + cnib_priorities + cn3_priorities + cn4_priorities + cn5_priorities + cn6_priorities
     )
 
     file_folders = {
+        "KV1": ROOT / "KV1",
+        "KV5": ROOT / "KV5",
         "CNIa": ROOT / "Cn Ia",
         "CNIb": ROOT / "CN Ib",
         "CN3": ROOT / "CN III",
@@ -553,6 +573,8 @@ def main():
     request_files = copy_files("yeu-cau-goc", ROOT / "CV yêu cầu gốc")
 
     unit_defs = [
+        ("KV1", "Kiểm toán nhà nước khu vực I", kv1_details, kv1_priorities, "Có đủ 3 biểu; phụ lục thực tế gồm 33 dòng danh mục và 10 nguồn ưu tiên. Kiến nghị chia sẻ dữ liệu thuế, hải quan, đầu tư và đối chiếu nợ công.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
+        ("KV5", "Kiểm toán nhà nước khu vực V", kv5_details, kv5_priorities, "Có 46 dòng danh mục và Biểu 03; chưa kèm Biểu 02 xếp hạng nguồn ưu tiên. Giữ nguyên các đề xuất kết nối trong báo cáo, không tự gán thứ tự ưu tiên.", "Đầy đủ", "Chưa có", "Đầy đủ"),
         ("CNIa", "Kiểm toán nhà nước chuyên ngành Ia", cnia_details, cnia_priorities, "Có đủ 3 biểu; gồm 43 dòng danh mục và 9 nguồn ưu tiên. Biểu 03 kiến nghị cơ chế riêng, hạ tầng tách biệt và phân quyền khi khai thác dữ liệu quốc phòng.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("CNIb", "Kiểm toán nhà nước chuyên ngành Ib", cnib_details, cnib_priorities, "Có 14 dòng danh mục; chưa kèm danh sách ưu tiên và báo cáo khó khăn, vướng mắc, kiến nghị.", "Đầy đủ", "Chưa có", "Chưa có"),
         ("CN3", "Kiểm toán nhà nước chuyên ngành III", cn3_details, cn3_priorities, "Có đủ 3 biểu; danh mục ngân sách, đầu tư, doanh nghiệp và các nguồn bổ sung.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
@@ -620,6 +642,11 @@ def main():
     ][:12]
 
     issues = [
+        {"severity": "Trung bình", "unit": "KV1", "title": "Số lượng danh mục trong công văn và phụ lục chưa khớp", "detail": "Công văn nêu 32 nguồn nhưng Biểu 01 có 33 dòng, đánh số từ 01 đến 33. Tổng hợp đang ghi nhận 33 dòng theo phụ lục; cần đơn vị xác nhận lại."},
+        {"severity": "Trung bình", "unit": "KV5", "title": "Chưa có Biểu số 02", "detail": "Hồ sơ hiện có công văn, Biểu 01 và Biểu 03. Biểu 03 đề xuất một số mã cần kết nối nhưng chưa có danh sách tối đa 10 nguồn được xếp hạng theo Biểu 02; không tự suy diễn thứ tự ưu tiên."},
+        {"severity": "Cao", "unit": "KV5", "title": "Mã bổ sung dùng cho nhiều nội dung khác nhau", "detail": "Biểu 01 dùng BS-01 cho hoàn thuế GTGT, đấu giá đất và đề cương khảo sát; BS-02 cho kết quả thanh tra tài chính, tiến độ và chất lượng xây dựng. Mô tả BS-01, BS-02 trong Biểu 03 cũng chưa khớp Biểu 01; cần tách mã và đối chiếu lại theo nội dung."},
+        {"severity": "Trung bình", "unit": "KV5", "title": "Mã giai đoạn ngoài danh mục chuẩn", "detail": "Dòng 27 (BS-09) ghi A5, trong khi hướng dẫn giai đoạn kiểm toán chỉ quy định A1 đến A4. Giao diện diễn giải là chưa xác định, giữ nguyên hồ sơ gốc và chờ đơn vị xác nhận."},
+        {"severity": "Trung bình", "unit": "KV5", "title": "Mã hình thức dữ liệu ngoài danh mục chuẩn", "detail": "Dòng 43 (ĐT-05) và dòng 45 (ĐT-07) có mã hình thức 00, trong khi hướng dẫn chỉ quy định 01 đến 05. Các mã hợp lệ được diễn giải thành chữ; mã 00 được ghi nhận là chưa xác định, không tự gán hình thức dữ liệu."},
         {"severity": "Trung bình", "unit": "CNIb", "title": "Chưa có Biểu số 02 và 03", "detail": "Hồ sơ hiện có danh mục 14 dòng; hai trang cuối trống, chưa có danh sách nguồn ưu tiên và báo cáo khó khăn, vướng mắc, kiến nghị."},
         {"severity": "Trung bình", "unit": "CN3", "title": "Số thứ tự 46 bị lặp", "detail": "Hai dòng cuối Biểu 01 cùng đánh số 46 (BS-14, BS-15); tổng thực tế là 47 dòng, cần chuẩn hóa số thứ tự."},
         {"severity": "Cao", "unit": "KV8", "title": "Mã BS-01 chưa thống nhất", "detail": "Biểu 02 xếp BS-01 là báo cáo nguồn và nhu cầu cải cách tiền lương, trong khi Biểu 01 dùng BS-01 cho giấy phép khai thác khoáng sản; báo cáo cải cách tiền lương mang mã BS-02."},
