@@ -209,15 +209,33 @@ def resolve_formula(wb, value):
     return value
 
 
+def resolve_sequence_cell(ws, coordinate, visited=None):
+    """Evaluate only cell references plus integer offsets used for STT."""
+    visited = set() if visited is None else visited
+    if coordinate in visited:
+        raise ValueError(f"Circular sequence formula: {ws.title}!{coordinate}")
+    visited.add(coordinate)
+    value = ws[coordinate].value
+    if isinstance(value, (int, float)):
+        return value
+    match = re.fullmatch(r"=\s*([A-Z]+\d+)\s*\+\s*(\d+)\s*", str(value), re.IGNORECASE)
+    if match:
+        return resolve_sequence_cell(ws, match.group(1).upper(), visited) + int(match.group(2))
+    raise ValueError(f"Unsupported sequence value: {ws.title}!{coordinate} = {value}")
+
+
 def read_excel(path, unit, detail_sheet, detail_start, priority_sheet, priority_start):
     wb = load_workbook(path, data_only=False, read_only=False)
     ws = wb[detail_sheet]
     details = []
-    for row in ws.iter_rows(min_row=detail_start, max_col=12, values_only=True):
+    for row_no, row in enumerate(ws.iter_rows(min_row=detail_start, max_col=12, values_only=True), detail_start):
         marker = row[0]
         is_data_marker = isinstance(marker, (int, float)) or (isinstance(marker, str) and marker.startswith("="))
         if is_data_marker and not is_column_index_row(row, 12) and clean(row[1]):
-            details.append(to_record(row, unit))
+            values = list(row)
+            if isinstance(marker, str) and marker.startswith("="):
+                values[0] = resolve_sequence_cell(ws, f"A{row_no}")
+            details.append(to_record(values, unit))
 
     ws = wb[priority_sheet]
     priorities = []
@@ -469,6 +487,9 @@ def main():
         "VTH", [2, 3], [4], merge_continuations=True,
     )
     vcs_details, vcs_priorities = [], []
+    cnia_details, cnia_priorities = read_excel(
+        ROOT / "Cn Ia" / "Bieu 01 02.xlsx", "CNIa", "Biểu 01", 8, "Biểu 02", 7,
+    )
     cnib_details, cnib_priorities = read_pdf_forms(
         ROOT / "CN Ib" / "CV gửi xác định nguồn dữ liệu-Cục CNTT.pdf",
         "CNIb", range(2, 6), [], merge_continuations=True,
@@ -499,15 +520,16 @@ def main():
     details = (
         vp_details + vth_details + vcs_details + thanh_tra_details + kv3_details + kv4_details
         + kv6_details + kv7_details + kv8_details + kv9_details + kv10_details + kv11_details
-        + k12_details + cnib_details + cn3_details + cn4_details + cn5_details + cn6_details
+        + k12_details + cnia_details + cnib_details + cn3_details + cn4_details + cn5_details + cn6_details
     )
     priorities = (
         vp_priorities + vth_priorities + vcs_priorities + thanh_tra_priorities + kv3_priorities
         + kv4_priorities + kv6_priorities + kv7_priorities + kv8_priorities + kv9_priorities
-        + kv10_priorities + kv11_priorities + k12_priorities + cnib_priorities + cn3_priorities + cn4_priorities + cn5_priorities + cn6_priorities
+        + kv10_priorities + kv11_priorities + k12_priorities + cnia_priorities + cnib_priorities + cn3_priorities + cn4_priorities + cn5_priorities + cn6_priorities
     )
 
     file_folders = {
+        "CNIa": ROOT / "Cn Ia",
         "CNIb": ROOT / "CN Ib",
         "CN3": ROOT / "CN III",
         "CN6": ROOT / "CN VI",
@@ -531,6 +553,7 @@ def main():
     request_files = copy_files("yeu-cau-goc", ROOT / "CV yêu cầu gốc")
 
     unit_defs = [
+        ("CNIa", "Kiểm toán nhà nước chuyên ngành Ia", cnia_details, cnia_priorities, "Có đủ 3 biểu; gồm 43 dòng danh mục và 9 nguồn ưu tiên. Biểu 03 kiến nghị cơ chế riêng, hạ tầng tách biệt và phân quyền khi khai thác dữ liệu quốc phòng.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("CNIb", "Kiểm toán nhà nước chuyên ngành Ib", cnib_details, cnib_priorities, "Có 14 dòng danh mục; chưa kèm danh sách ưu tiên và báo cáo khó khăn, vướng mắc, kiến nghị.", "Đầy đủ", "Chưa có", "Chưa có"),
         ("CN3", "Kiểm toán nhà nước chuyên ngành III", cn3_details, cn3_priorities, "Có đủ 3 biểu; danh mục ngân sách, đầu tư, doanh nghiệp và các nguồn bổ sung.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("CN6", "Kiểm toán nhà nước chuyên ngành VI", cn6_details, cn6_priorities, "Có đủ 3 biểu; danh mục ngân hàng, bảo hiểm, bảo hiểm xã hội và chứng khoán.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
@@ -578,13 +601,13 @@ def main():
             code.strip()
             for p in priorities if p["unit"] == unit
             for code in re.split(r"[,;/]+", re.sub(r"([A-ZĐ])-\s+(\d)", r"\1-\2", p["code"], flags=re.IGNORECASE))
-            if code.strip() and not re.fullmatch(r"BS-\d+", code.strip(), flags=re.IGNORECASE)
+            if code.strip() and not re.fullmatch(r"BS-.+", code.strip(), flags=re.IGNORECASE)
         }
         priority_presence.update(codes)
     bs_matches = {}
     for priority in priorities:
         code = priority["code"].upper()
-        if not re.fullmatch(r"BS-\d+", code):
+        if not re.fullmatch(r"BS-.+", code):
             continue
         key = (code, content_key(priority["name"]))
         bs_matches.setdefault(key, set()).add(priority["unit"])
