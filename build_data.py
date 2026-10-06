@@ -491,6 +491,10 @@ def main():
         "VTH", [2, 3], [4], merge_continuations=True,
     )
     vcs_details, vcs_priorities = [], []
+    pc_details, pc_priorities = [], []
+    cn2_details, cn2_priorities = read_docx_forms(
+        ROOT / "CN II" / "Bieu 01-02-03 tong hop - KTNN CN2.docx", "CN2",
+    )
     kv1_details, kv1_priorities = read_pdf_forms(
         ROOT / "KV1" / "Phụ lục  CSDL hoạt động KT.pdf",
         "KV1", range(1, 5), [5, 6], merge_continuations=True,
@@ -536,17 +540,19 @@ def main():
     thanh_tra_priorities = []
 
     details = (
-        vp_details + vth_details + vcs_details + thanh_tra_details + kv1_details + kv5_details + kv3_details + kv4_details
+        vp_details + vth_details + vcs_details + pc_details + cn2_details + thanh_tra_details + kv1_details + kv5_details + kv3_details + kv4_details
         + kv6_details + kv7_details + kv8_details + kv9_details + kv10_details + kv11_details
         + k12_details + cnia_details + cnib_details + cn3_details + cn4_details + cn5_details + cn6_details
     )
     priorities = (
-        vp_priorities + vth_priorities + vcs_priorities + thanh_tra_priorities + kv1_priorities + kv5_priorities + kv3_priorities
+        vp_priorities + vth_priorities + vcs_priorities + pc_priorities + cn2_priorities + thanh_tra_priorities + kv1_priorities + kv5_priorities + kv3_priorities
         + kv4_priorities + kv6_priorities + kv7_priorities + kv8_priorities + kv9_priorities
         + kv10_priorities + kv11_priorities + k12_priorities + cnia_priorities + cnib_priorities + cn3_priorities + cn4_priorities + cn5_priorities + cn6_priorities
     )
 
     file_folders = {
+        "PC": ROOT / "Vụ PC",
+        "CN2": ROOT / "CN II",
         "KV1": ROOT / "KV1",
         "KV5": ROOT / "KV5",
         "CNIa": ROOT / "Cn Ia",
@@ -573,6 +579,8 @@ def main():
     request_files = copy_files("yeu-cau-goc", ROOT / "CV yêu cầu gốc")
 
     unit_defs = [
+        ("PC", "Vụ Pháp chế", pc_details, pc_priorities, "Đã có văn bản trả lời: không lập danh mục nguồn dữ liệu nghiệp vụ kiểm toán theo chức năng chuyên môn; sẵn sàng cung cấp, phối hợp về dữ liệu pháp lý khi có yêu cầu cụ thể.", "Không lập biểu", "Không lập biểu", "Không lập biểu"),
+        ("CN2", "Kiểm toán nhà nước chuyên ngành II", cn2_details, cn2_priorities, "Có đủ 3 biểu; gồm 26 nguồn dữ liệu và 10 nguồn ưu tiên về ngân sách, đầu tư và dữ liệu dùng chung. Kiến nghị kết nối Kho bạc, tài sản công, đầu tư công, đấu thầu và chuẩn hóa dữ liệu điện tử.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("KV1", "Kiểm toán nhà nước khu vực I", kv1_details, kv1_priorities, "Có đủ 3 biểu; phụ lục thực tế gồm 33 dòng danh mục và 10 nguồn ưu tiên. Kiến nghị chia sẻ dữ liệu thuế, hải quan, đầu tư và đối chiếu nợ công.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("KV5", "Kiểm toán nhà nước khu vực V", kv5_details, kv5_priorities, "Có 46 dòng danh mục và Biểu 03; chưa kèm Biểu 02 xếp hạng nguồn ưu tiên. Giữ nguyên các đề xuất kết nối trong báo cáo, không tự gán thứ tự ưu tiên.", "Đầy đủ", "Chưa có", "Đầy đủ"),
         ("CNIa", "Kiểm toán nhà nước chuyên ngành Ia", cnia_details, cnia_priorities, "Có đủ 3 biểu; gồm 43 dòng danh mục và 9 nguồn ưu tiên. Biểu 03 kiến nghị cơ chế riêng, hạ tầng tách biệt và phân quyền khi khai thác dữ liệu quốc phòng.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
@@ -642,6 +650,7 @@ def main():
     ][:12]
 
     issues = [
+        {"severity": "Theo dõi", "unit": "CN2", "title": "Ngày công văn viện dẫn chưa khớp yêu cầu gốc", "detail": "Văn bản phúc đáp ghi Công văn 998/CNTT-UDDLS ngày 23/9/2026, trong khi yêu cầu gốc ghi ngày 24/9/2026; cần đối chiếu ngày viện dẫn trước khi hoàn thiện hồ sơ."},
         {"severity": "Trung bình", "unit": "KV1", "title": "Số lượng danh mục trong công văn và phụ lục chưa khớp", "detail": "Công văn nêu 32 nguồn nhưng Biểu 01 có 33 dòng, đánh số từ 01 đến 33. Tổng hợp đang ghi nhận 33 dòng theo phụ lục; cần đơn vị xác nhận lại."},
         {"severity": "Trung bình", "unit": "KV5", "title": "Chưa có Biểu số 02", "detail": "Hồ sơ hiện có công văn, Biểu 01 và Biểu 03. Biểu 03 đề xuất một số mã cần kết nối nhưng chưa có danh sách tối đa 10 nguồn được xếp hạng theo Biểu 02; không tự suy diễn thứ tự ưu tiên."},
         {"severity": "Cao", "unit": "KV5", "title": "Mã bổ sung dùng cho nhiều nội dung khác nhau", "detail": "Biểu 01 dùng BS-01 cho hoàn thuế GTGT, đấu giá đất và đề cương khảo sát; BS-02 cho kết quả thanh tra tài chính, tiến độ và chất lượng xây dựng. Mô tả BS-01, BS-02 trong Biểu 03 cũng chưa khớp Biểu 01; cần tách mã và đối chiếu lại theo nội dung."},

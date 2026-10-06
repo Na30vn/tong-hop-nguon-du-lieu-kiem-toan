@@ -34,7 +34,7 @@
   const shortUnitName = name => String(name || '').replace(/Kiểm toán nhà nước/gi, 'KTNN');
   const unitName = code => shortUnitName(unitByCode(code)?.name || code);
   const formPill = (label, status) => {
-    const stateClass = status === 'Chưa có' ? 'missing' : status === 'Một phần' ? 'partial' : status === 'Không phát sinh' ? 'not-applicable' : '';
+    const stateClass = status === 'Chưa có' ? 'missing' : status === 'Một phần' ? 'partial' : ['Không phát sinh','Không lập biểu'].includes(status) ? 'not-applicable' : '';
     return `<div class="form-pill ${stateClass}">${status === 'Đầy đủ' ? label : `${label}: ${esc(status)}`}</div>`;
   };
   const splitValues = value => String(value || '').split(';').map(item => item.trim()).filter(Boolean);
