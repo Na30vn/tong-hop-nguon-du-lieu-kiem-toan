@@ -347,6 +347,26 @@ def read_docx_forms(path, unit, detail_table=0, priority_table=1):
     return details, priorities
 
 
+def read_kv2_forms(path):
+    """KV II splits the two forms across five tables and repeats their headers."""
+    doc = Document(path)
+    details, priorities = [], []
+    for table in doc.tables[:3]:
+        for row in table.rows:
+            values = [clean(cell.text) for cell in row.cells]
+            if len(values) == 12 and re.fullmatch(r"\d+", values[0]) and values[1] and not is_column_index_row(values, 12):
+                details.append(to_record(values, "KV2"))
+            elif len(values) == 12 and not any(values[:5]) and values[5] and details:
+                details[-1]["name"] += " " + values[5]
+    for table in doc.tables[3:5]:
+        for row in table.rows:
+            values = [clean(cell.text) for cell in row.cells]
+            if len(values) == 4 and re.fullmatch(r"\d+", values[0]) and values[1] and values[2] and not is_column_index_row(values, 4):
+                priorities.append(dict(rank=int(values[0]), code=values[1], name=values[2], reason=values[3], unit="KV2"))
+    assert len(details) == 27 and len(priorities) == 9, "KV II form layout changed; verify extraction"
+    return details, priorities
+
+
 def read_kv6_scan():
     """Transcription of the image-only 17-page signed PDF received from KV VI."""
     rows = [
@@ -495,6 +515,7 @@ def main():
     cn2_details, cn2_priorities = read_docx_forms(
         ROOT / "CN II" / "Bieu 01-02-03 tong hop - KTNN CN2.docx", "CN2",
     )
+    kv2_details, kv2_priorities = read_kv2_forms(ROOT / "KV2" / "2. PHỤ LỤC CV998.docx")
     kv1_details, kv1_priorities = read_pdf_forms(
         ROOT / "KV1" / "Phụ lục  CSDL hoạt động KT.pdf",
         "KV1", range(1, 5), [5, 6], merge_continuations=True,
@@ -540,17 +561,18 @@ def main():
     thanh_tra_priorities = []
 
     details = (
-        vp_details + vth_details + vcs_details + pc_details + cn2_details + thanh_tra_details + kv1_details + kv5_details + kv3_details + kv4_details
+        vp_details + vth_details + vcs_details + pc_details + cn2_details + thanh_tra_details + kv1_details + kv2_details + kv5_details + kv3_details + kv4_details
         + kv6_details + kv7_details + kv8_details + kv9_details + kv10_details + kv11_details
         + k12_details + cnia_details + cnib_details + cn3_details + cn4_details + cn5_details + cn6_details
     )
     priorities = (
-        vp_priorities + vth_priorities + vcs_priorities + pc_priorities + cn2_priorities + thanh_tra_priorities + kv1_priorities + kv5_priorities + kv3_priorities
+        vp_priorities + vth_priorities + vcs_priorities + pc_priorities + cn2_priorities + thanh_tra_priorities + kv1_priorities + kv2_priorities + kv5_priorities + kv3_priorities
         + kv4_priorities + kv6_priorities + kv7_priorities + kv8_priorities + kv9_priorities
         + kv10_priorities + kv11_priorities + k12_priorities + cnia_priorities + cnib_priorities + cn3_priorities + cn4_priorities + cn5_priorities + cn6_priorities
     )
 
     file_folders = {
+        "KV2": ROOT / "KV2",
         "PC": ROOT / "Vụ PC",
         "CN2": ROOT / "CN II",
         "KV1": ROOT / "KV1",
@@ -579,6 +601,7 @@ def main():
     request_files = copy_files("yeu-cau-goc", ROOT / "CV yêu cầu gốc")
 
     unit_defs = [
+        ("KV2", "Kiểm toán nhà nước khu vực II", kv2_details, kv2_priorities, "Có đủ 3 biểu; gồm 27 dòng danh mục và 9 nguồn ưu tiên. Kiến nghị chia sẻ dữ liệu Kho bạc, thuế, hải quan, đấu thầu; số hóa hồ sơ và đối chiếu nợ xây dựng cơ bản.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("PC", "Vụ Pháp chế", pc_details, pc_priorities, "Đã có văn bản trả lời: không lập danh mục nguồn dữ liệu nghiệp vụ kiểm toán theo chức năng chuyên môn; sẵn sàng cung cấp, phối hợp về dữ liệu pháp lý khi có yêu cầu cụ thể.", "Không lập biểu", "Không lập biểu", "Không lập biểu"),
         ("CN2", "Kiểm toán nhà nước chuyên ngành II", cn2_details, cn2_priorities, "Có đủ 3 biểu; gồm 26 nguồn dữ liệu và 10 nguồn ưu tiên về ngân sách, đầu tư và dữ liệu dùng chung. Kiến nghị kết nối Kho bạc, tài sản công, đầu tư công, đấu thầu và chuẩn hóa dữ liệu điện tử.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
         ("KV1", "Kiểm toán nhà nước khu vực I", kv1_details, kv1_priorities, "Có đủ 3 biểu; phụ lục thực tế gồm 33 dòng danh mục và 10 nguồn ưu tiên. Kiến nghị chia sẻ dữ liệu thuế, hải quan, đầu tư và đối chiếu nợ công.", "Đầy đủ", "Đầy đủ", "Đầy đủ"),
@@ -650,6 +673,7 @@ def main():
     ][:12]
 
     issues = [
+        {"severity": "Theo dõi", "unit": "KV2", "title": "Cần tách phạm vi nợ và cơ quan thu", "detail": "NS-11 gồm cả vay, trả nợ công và nợ xây dựng cơ bản; NS-04 tại Biểu 02 đề cập cả cơ quan thuế và hải quan. Cần xác nhận từng nội dung, đầu mối và phạm vi nguồn trước khi hợp nhất, không coi cùng mã là cùng dữ liệu."},
         {"severity": "Theo dõi", "unit": "CN2", "title": "Ngày công văn viện dẫn chưa khớp yêu cầu gốc", "detail": "Văn bản phúc đáp ghi Công văn 998/CNTT-UDDLS ngày 23/9/2026, trong khi yêu cầu gốc ghi ngày 24/9/2026; cần đối chiếu ngày viện dẫn trước khi hoàn thiện hồ sơ."},
         {"severity": "Trung bình", "unit": "KV1", "title": "Số lượng danh mục trong công văn và phụ lục chưa khớp", "detail": "Công văn nêu 32 nguồn nhưng Biểu 01 có 33 dòng, đánh số từ 01 đến 33. Tổng hợp đang ghi nhận 33 dòng theo phụ lục; cần đơn vị xác nhận lại."},
         {"severity": "Trung bình", "unit": "KV5", "title": "Chưa có Biểu số 02", "detail": "Hồ sơ hiện có công văn, Biểu 01 và Biểu 03. Biểu 03 đề xuất một số mã cần kết nối nhưng chưa có danh sách tối đa 10 nguồn được xếp hạng theo Biểu 02; không tự suy diễn thứ tự ưu tiên."},
